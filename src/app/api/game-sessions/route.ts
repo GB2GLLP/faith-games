@@ -46,8 +46,9 @@ export async function POST(request: Request) {
     .eq('game_type', gameType)
     .single()
 
-  const hostScore = finalScores?.[players?.[0]?.name] || 0
-  const didWin = winner === players?.[0]?.name
+  const hostName = Array.isArray(players) && players.length > 0 ? players[0].name : null
+  const hostScore = hostName && finalScores ? (finalScores[hostName] || 0) : 0
+  const didWin = hostName ? winner === hostName : false
 
   if (existingStats) {
     await supabase.from('game_stats')

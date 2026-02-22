@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
+import { useAuthStore } from '@/stores/authStore'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Spinner } from '@/components/ui/Spinner'
@@ -15,23 +16,25 @@ const gameLabels: Record<string, { name: string; icon: string }> = {
 }
 
 export default function StatsPage() {
+  const { user } = useAuthStore()
   const [stats, setStats] = useState<any[]>([])
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
+      if (!user?.id) return
       const supabase = createClient()
       const [statsRes, sessionsRes] = await Promise.all([
-        supabase.from('game_stats').select('*'),
-        supabase.from('game_sessions').select('*').order('created_at', { ascending: false }).limit(20),
+        supabase.from('game_stats').select('*').eq('user_id', user.id),
+        supabase.from('game_sessions').select('*').eq('host_user_id', user.id).order('created_at', { ascending: false }).limit(20),
       ])
       setStats(statsRes.data || [])
       setSessions(sessionsRes.data || [])
       setLoading(false)
     }
     load()
-  }, [])
+  }, [user?.id])
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-[60vh]"><Spinner size="lg" /></div>

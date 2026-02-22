@@ -25,17 +25,20 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadData() {
+      if (!user?.id) return
       const supabase = createClient()
 
       const [gamesRes, statsRes] = await Promise.all([
         supabase
           .from('game_sessions')
           .select('*')
+          .eq('host_user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(5),
         supabase
           .from('game_stats')
-          .select('*'),
+          .select('*')
+          .eq('user_id', user.id),
       ])
 
       setRecentGames(gamesRes.data || [])
@@ -43,7 +46,7 @@ export default function DashboardPage() {
       setLoading(false)
     }
     loadData()
-  }, [])
+  }, [user?.id])
 
   const totalGames = stats.reduce((sum: number, s: any) => sum + (s.games_played || 0), 0)
   const totalWins = stats.reduce((sum: number, s: any) => sum + (s.games_won || 0), 0)

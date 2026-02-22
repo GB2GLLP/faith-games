@@ -18,7 +18,7 @@ export default function GuessVersePage() {
   const router = useRouter()
   const game = useGameStore()
   const verse = useGuessVerseStore()
-  const revealInterval = useRef<NodeJS.Timeout | null>(null)
+  const revealInterval = useRef<ReturnType<typeof setInterval> | null>(null)
   const [playerChoosing, setPlayerChoosing] = useState<string | null>(null)
   const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(null)
 
@@ -96,7 +96,6 @@ export default function GuessVersePage() {
       // Wrong answer - penalty and reopen
       game.updateScore(playerId, GAME_CONFIG.GUESS_VERSE.PENALTY)
       setTimeout(() => {
-        const verseState = useGuessVerseStore.getState()
         // Reset to revealing state so others can grab
         useGuessVerseStore.setState({
           revealPhase: 'revealing',

@@ -60,12 +60,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signIn: async (email, password) => {
     const supabase = createClient()
     set({ loading: true })
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       set({ loading: false })
       return { error: error.message }
     }
-    await get().refreshUser()
+    if (data.user) {
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', data.user.id)
+        .single()
+      if (profile) {
+        set({ user: profile, loading: false })
+      } else {
+        console.warn('Profile fetch failed:', profileError)
+        set({ loading: false })
+        return { error: 'Could not load profile' }
+      }
+    }
     return { error: null }
   },
 

@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Faith Games",
+    "slug": "faith-games",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "faithgames",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0891b2"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.faithgames.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0891b2"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.faithgames.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Allow Faith Games to detect device tilt for gameplay."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ]
+    ]
+  }
+}

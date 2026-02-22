@@ -60,25 +60,19 @@ export const CHURCH_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 export const SUBSCRIPTION_PLANS = {
   INDIVIDUAL_MONTHLY: {
     name: 'Individual Monthly',
-    price: 4.99,
+    price: 0.99,
     interval: 'month' as const,
   },
   INDIVIDUAL_ANNUAL: {
     name: 'Individual Annual',
-    price: 39.99,
+    price: 12,
     interval: 'year' as const,
   },
-  CHURCH_MONTHLY: {
-    name: 'Church Monthly',
-    price: 19.99,
+  CHURCH_PER_MEMBER: {
+    name: 'Church (per member)',
+    pricePerMember: 0.99,
     interval: 'month' as const,
-    seats: 50,
-  },
-  CHURCH_ANNUAL: {
-    name: 'Church Annual',
-    price: 179.99,
-    interval: 'year' as const,
-    seats: 50,
+    description: 'Billed per active member using your church code',
   },
 } as const
 

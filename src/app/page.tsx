@@ -1,10 +1,19 @@
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Hero */}
       <header className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+        <Image
+          src="/logo.png"
+          alt="Faith Games"
+          width={160}
+          height={160}
+          className="mb-6"
+          priority
+        />
         <h1 className="font-display text-5xl md:text-7xl font-bold text-gold mb-4">
           Faith Games
         </h1>
