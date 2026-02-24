@@ -6,18 +6,22 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
 import { ROUTES } from '@/lib/constants'
 
-const navLinks = [
-  { href: ROUTES.DASHBOARD, label: 'Dashboard', icon: '🏠' },
-  { href: ROUTES.GAMES.CHARADES, label: 'Games', icon: '🎮', match: '/games' },
-  { href: ROUTES.LEADERBOARD, label: 'Leaderboard', icon: '🏆' },
-  { href: ROUTES.STATS, label: 'Stats', icon: '📊' },
-  { href: ROUTES.PROFILE, label: 'Profile', icon: '👤' },
-  { href: ROUTES.SUBSCRIPTION, label: 'Subscription', icon: '⭐' },
-]
-
 export function MobileNav() {
   const pathname = usePathname()
   const { user, mobileNavOpen, toggleMobileNav, signOut } = useAuthStore()
+
+  const navLinks = [
+    ...(user ? [{ href: ROUTES.DASHBOARD, label: 'Dashboard', icon: '🏠' }] : []),
+    { href: ROUTES.GAMES.CHARADES, label: 'Games', icon: '🎮', match: '/games' },
+    { href: ROUTES.LEADERBOARD, label: 'Leaderboard', icon: '🏆' },
+    { href: ROUTES.STATS, label: 'Stats', icon: '📊' },
+    ...(user
+      ? [
+          { href: ROUTES.PROFILE, label: 'Profile', icon: '👤' },
+          { href: ROUTES.SUBSCRIPTION, label: 'Subscription', icon: '⭐' },
+        ]
+      : []),
+  ]
 
   return (
     <AnimatePresence>
@@ -35,7 +39,7 @@ export function MobileNav() {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
-            className="fixed right-0 top-0 bottom-0 w-72 bg-navy-light border-l border-cream/10 z-50 md:hidden"
+            className="fixed right-0 top-0 bottom-0 w-72 bg-navy/95 backdrop-blur-xl border-l border-cream/10 z-50 md:hidden"
           >
             <div className="p-6">
               <div className="flex items-center justify-between mb-8">
@@ -73,20 +77,39 @@ export function MobileNav() {
                 })}
               </div>
 
-              {user && (
-                <div className="mt-8 pt-6 border-t border-cream/10">
-                  <p className="text-sm text-cream/40 mb-3">{user.email}</p>
-                  <button
-                    onClick={() => {
-                      signOut()
-                      toggleMobileNav()
-                    }}
-                    className="text-sm text-red-400 hover:text-red-300"
-                  >
-                    Sign Out
-                  </button>
-                </div>
-              )}
+              <div className="mt-8 pt-6 border-t border-cream/10">
+                {user ? (
+                  <>
+                    <p className="text-sm text-cream/40 mb-3">{user.email}</p>
+                    <button
+                      onClick={() => {
+                        signOut()
+                        toggleMobileNav()
+                      }}
+                      className="text-sm text-red-400 hover:text-red-300"
+                    >
+                      Sign Out
+                    </button>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    <Link
+                      href={ROUTES.LOGIN}
+                      onClick={toggleMobileNav}
+                      className="block w-full text-center px-4 py-2.5 border border-cream/20 text-cream text-sm font-medium rounded-lg hover:bg-cream/5 transition-colors"
+                    >
+                      Sign In
+                    </Link>
+                    <Link
+                      href="/games"
+                      onClick={toggleMobileNav}
+                      className="block w-full text-center px-4 py-2.5 bg-gold text-navy text-sm font-semibold rounded-lg hover:bg-gold-light transition-colors"
+                    >
+                      Get Started
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
         </>

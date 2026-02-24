@@ -78,7 +78,7 @@ export const SUBSCRIPTION_PLANS = {
 
 export const CATEGORIES = {
   CHARADES: ['Old Testament', 'New Testament', 'Miracles', 'Parables', 'Creation', 'Prophets'],
-  CHARACTERS: ['Old Testament', 'New Testament', 'Kings', 'Prophets', 'Apostles', 'Women of the Bible'],
-  VERSES: ['Psalms', 'Proverbs', 'Gospels', 'Epistles', 'Prophecy', 'Wisdom'],
-  TRIVIA: ['Old Testament', 'New Testament', 'People', 'Places', 'Miracles', 'Prophecy'],
+  CHARACTERS: ['Patriarchs', 'Kings', 'Prophets', 'New Testament', 'Women of the Bible', 'Judges'],
+  VERSES: ['Salvation', 'Faith', 'Wisdom', 'Comfort', 'Praise', 'Commands', 'Prophecy', 'Love'],
+  TRIVIA: ['Old Testament', 'New Testament', 'People', 'Geography', 'Numbers', 'Miracles', 'General Knowledge', 'Books of the Bible'],
 } as const

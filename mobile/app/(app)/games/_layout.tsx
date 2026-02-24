@@ -1,7 +1,24 @@
-import { Stack } from 'expo-router'
+import { useEffect } from 'react'
+import { Stack, usePathname, useNavigation } from 'expo-router'
 import { colors } from '../../../lib/theme'
 
+const GAME_ROUTES = ['/charades', '/who-am-i', '/guess-verse', '/trivia']
+
 export default function GamesLayout() {
+  const pathname = usePathname()
+  const navigation = useNavigation()
+
+  const isInGame = GAME_ROUTES.some((r) => pathname.includes(r))
+
+  // Hide parent tab bar when inside a game screen
+  useEffect(() => {
+    if (isInGame) {
+      navigation.setOptions({ tabBarStyle: { display: 'none' } })
+    } else {
+      navigation.setOptions({ tabBarStyle: undefined })
+    }
+  }, [isInGame])
+
   return (
     <Stack
       screenOptions={{

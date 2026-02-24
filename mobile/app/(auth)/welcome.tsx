@@ -12,22 +12,24 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useOnboardingSeen } from '../../hooks/useOnboardingSeen'
-import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../../lib/theme'
+import { spacing, fontSize, fontWeight, borderRadius, shadows } from '../../lib/theme'
+import ParallaxBackground from '../../components/welcome/ParallaxBackground'
+import WoodenTitle from '../../components/welcome/WoodenTitle'
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
+const { width: SW, height: SH } = Dimensions.get('window')
 
 // --- Data ---
-const BIBLE_NAMES_ROW1 = ['Moses', 'David', 'Esther', 'Paul', 'Ruth', 'Abraham', 'Mary', 'Daniel', 'Noah', 'Sarah']
-const BIBLE_NAMES_ROW2 = ['Peter', 'Joseph', 'Deborah', 'Elijah', 'Hannah', 'Solomon', 'Rahab', 'Joshua', 'Miriam', 'Samson']
-const BIBLE_NAMES_ROW3 = ['Samuel', 'Lydia', 'Gideon', 'Rebecca', 'Caleb', 'Martha', 'Jonah', 'Priscilla', 'Timothy', 'Eve']
-
-const PILL_COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#0ea5e9', '#f43f5e', '#6366f1', '#22c55e', '#e11d48']
-
 const GAME_CARDS = [
   { title: 'Bible Charades', desc: 'Act out Bible stories', icon: 'body' as const, bg: '#FEF3C7', border: '#f59e0b', color: '#92400e' },
   { title: 'Who Am I?', desc: 'Guess the character', icon: 'help-circle' as const, bg: '#DBEAFE', border: '#3b82f6', color: '#1e3a8a' },
   { title: 'Guess the Verse', desc: 'Reveal words one by one', icon: 'book' as const, bg: '#D1FAE5', border: '#10b981', color: '#064e3b' },
   { title: 'Bible Trivia', desc: 'Test your knowledge', icon: 'bulb' as const, bg: '#EDE9FE', border: '#8b5cf6', color: '#4c1d95' },
+]
+
+const ABOUT_ITEMS = [
+  { icon: 'heart' as const, title: 'Family Friendly', desc: 'Safe fun for all ages' },
+  { icon: 'book' as const, title: 'Bible Based', desc: 'Rooted in Scripture' },
+  { icon: 'people' as const, title: 'Church Connected', desc: 'Play with your community' },
 ]
 
 const FEATURES = [
@@ -36,119 +38,31 @@ const FEATURES = [
   { icon: 'trophy' as const, title: 'Church Leaderboards', desc: 'Compete with your church' },
 ]
 
-// --- Floating Particles ---
-function FloatingParticles() {
-  const particles = useRef(
-    Array.from({ length: 12 }, () => ({
-      x: new Animated.Value(Math.random() * SCREEN_WIDTH),
-      y: new Animated.Value(Math.random() * SCREEN_HEIGHT * 0.4),
-      opacity: new Animated.Value(Math.random() * 0.4 + 0.1),
-      scale: new Animated.Value(Math.random() * 0.5 + 0.5),
-      isCross: Math.random() > 0.5,
-    }))
-  ).current
+// --- Scroll Down Indicator ---
+function ScrollDownIndicator({ scrollY }: { scrollY: Animated.Value }) {
+  const bounce = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
-    particles.forEach((p) => {
-      const animateParticle = () => {
-        Animated.parallel([
-          Animated.timing(p.y, {
-            toValue: -30,
-            duration: 4000 + Math.random() * 4000,
-            useNativeDriver: true,
-          }),
-          Animated.sequence([
-            Animated.timing(p.opacity, {
-              toValue: 0.6,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(p.opacity, {
-              toValue: 0,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-          ]),
-        ]).start(() => {
-          p.y.setValue(SCREEN_HEIGHT * 0.4 + 20)
-          p.x.setValue(Math.random() * SCREEN_WIDTH)
-          p.opacity.setValue(0.1)
-          animateParticle()
-        })
-      }
-      setTimeout(animateParticle, Math.random() * 3000)
-    })
-  }, [])
-
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {particles.map((p, i) => (
-        <Animated.View
-          key={i}
-          style={{
-            position: 'absolute',
-            transform: [{ translateX: p.x }, { translateY: p.y }, { scale: p.scale }],
-            opacity: p.opacity,
-          }}
-        >
-          <Text style={{ fontSize: 16, color: colors.gold }}>
-            {p.isCross ? '✦' : '✝'}
-          </Text>
-        </Animated.View>
-      ))}
-    </View>
-  )
-}
-
-// --- Marquee Row ---
-function MarqueeRow({
-  names,
-  speed,
-  reverse,
-}: {
-  names: string[]
-  speed: number
-  reverse?: boolean
-}) {
-  const translateX = useRef(new Animated.Value(reverse ? -SCREEN_WIDTH : 0)).current
-  const totalWidth = names.length * 120
-
-  useEffect(() => {
-    const from = reverse ? 0 : 0
-    const to = reverse ? totalWidth : -totalWidth
-
-    translateX.setValue(from)
     Animated.loop(
-      Animated.timing(translateX, {
-        toValue: to,
-        duration: speed,
-        useNativeDriver: true,
-      })
+      Animated.sequence([
+        Animated.timing(bounce, { toValue: 10, duration: 800, useNativeDriver: true }),
+        Animated.timing(bounce, { toValue: 0, duration: 800, useNativeDriver: true }),
+      ])
     ).start()
   }, [])
 
-  const doubled = [...names, ...names]
+  const opacity = scrollY.interpolate({
+    inputRange: [0, SH * 0.1],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  })
 
   return (
-    <View style={marqueeStyles.row}>
-      <Animated.View
-        style={[marqueeStyles.inner, { transform: [{ translateX }] }]}
-      >
-        {doubled.map((name, i) => (
-          <View
-            key={`${name}-${i}`}
-            style={[
-              marqueeStyles.pill,
-              { backgroundColor: PILL_COLORS[i % PILL_COLORS.length] + '20', borderColor: PILL_COLORS[i % PILL_COLORS.length] + '60' },
-            ]}
-          >
-            <Text style={[marqueeStyles.pillText, { color: PILL_COLORS[i % PILL_COLORS.length] }]}>
-              {name}
-            </Text>
-          </View>
-        ))}
+    <Animated.View style={{ opacity, alignItems: 'center', marginTop: 20 }}>
+      <Animated.View style={{ transform: [{ translateY: bounce }] }}>
+        <Ionicons name="chevron-down" size={28} color="rgba(255,255,255,0.7)" />
       </Animated.View>
-    </View>
+    </Animated.View>
   )
 }
 
@@ -158,120 +72,90 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets()
   const { markSeen } = useOnboardingSeen()
 
-  // Hero animations
-  const titleScale = useRef(new Animated.Value(0.3)).current
-  const titleOpacity = useRef(new Animated.Value(0)).current
-  const subtitleOpacity = useRef(new Animated.Value(0)).current
-  const subtitleTranslateY = useRef(new Animated.Value(20)).current
-
-  // Scroll-driven
   const scrollY = useRef(new Animated.Value(0)).current
 
-  // Game card animations
+  // Hero entry animation
+  const heroScale = useRef(new Animated.Value(0.3)).current
+  const heroOpacity = useRef(new Animated.Value(0)).current
+
+  // Staggered section entrance anims (timed, not scroll-driven)
   const cardAnims = useRef(GAME_CARDS.map(() => new Animated.Value(0))).current
-
-  // Feature animations
+  const aboutAnim = useRef(new Animated.Value(0)).current
   const featureAnims = useRef(FEATURES.map(() => new Animated.Value(0))).current
+  const ctaAnim = useRef(new Animated.Value(0)).current
 
-  // CTA
-  const ctaOpacity = useRef(new Animated.Value(0)).current
-  const ctaTranslateY = useRef(new Animated.Value(30)).current
+  // Button pulse
   const buttonPulse = useRef(new Animated.Value(1)).current
 
   useEffect(() => {
-    // Hero entrance
-    Animated.sequence([
-      Animated.parallel([
-        Animated.spring(titleScale, {
-          toValue: 1,
-          friction: 4,
-          tension: 60,
-          useNativeDriver: true,
-        }),
-        Animated.timing(titleOpacity, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.timing(subtitleOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(subtitleTranslateY, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]),
+    // Hero spring in
+    Animated.parallel([
+      Animated.spring(heroScale, {
+        toValue: 1,
+        friction: 4,
+        tension: 60,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heroOpacity, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
     ]).start()
 
     // Staggered card reveals
     const cardTimers = cardAnims.map((anim, i) =>
       setTimeout(() => {
-        Animated.spring(anim, {
-          toValue: 1,
-          friction: 5,
-          tension: 50,
-          useNativeDriver: true,
-        }).start()
-      }, 800 + i * 150)
+        Animated.spring(anim, { toValue: 1, friction: 5, tension: 50, useNativeDriver: true }).start()
+      }, 600 + i * 120)
     )
 
-    // Features reveal
+    // About section
+    const aboutTimer = setTimeout(() => {
+      Animated.spring(aboutAnim, { toValue: 1, friction: 5, tension: 50, useNativeDriver: true }).start()
+    }, 1200)
+
+    // Feature rows
     const featureTimers = featureAnims.map((anim, i) =>
       setTimeout(() => {
-        Animated.spring(anim, {
-          toValue: 1,
-          friction: 5,
-          tension: 50,
-          useNativeDriver: true,
-        }).start()
-      }, 1400 + i * 200)
+        Animated.spring(anim, { toValue: 1, friction: 5, tension: 50, useNativeDriver: true }).start()
+      }, 1400 + i * 150)
     )
 
     // CTA
     const ctaTimer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(ctaOpacity, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(ctaTranslateY, {
-          toValue: 0,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]).start()
-    }, 2000)
+      Animated.timing(ctaAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start()
+    }, 1800)
 
-    // Button pulse
+    // CTA button pulse
     Animated.loop(
       Animated.sequence([
-        Animated.timing(buttonPulse, {
-          toValue: 1.05,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(buttonPulse, {
-          toValue: 1,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
+        Animated.timing(buttonPulse, { toValue: 1.05, duration: 1200, useNativeDriver: true }),
+        Animated.timing(buttonPulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
       ])
     ).start()
 
     return () => {
       cardTimers.forEach(clearTimeout)
+      clearTimeout(aboutTimer)
       featureTimers.forEach(clearTimeout)
       clearTimeout(ctaTimer)
     }
   }, [])
 
-  const handleGetStarted = async () => {
+  // Scroll-driven hero shrink/fade
+  const heroScrollScale = scrollY.interpolate({
+    inputRange: [0, SH * 0.25],
+    outputRange: [1, 0.7],
+    extrapolate: 'clamp',
+  })
+  const heroScrollOpacity = scrollY.interpolate({
+    inputRange: [0, SH * 0.3],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  })
+
+  const handlePlayNow = async () => {
     await markSeen()
     router.replace('/signup')
   }
@@ -283,8 +167,12 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
 
+      {/* Fixed background */}
+      <ParallaxBackground scrollY={scrollY} />
+
+      {/* Scrollable content */}
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event(
@@ -294,53 +182,24 @@ export default function WelcomeScreen() {
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 40 }}
       >
-        {/* Section 1: Hero */}
+        {/* ===== HERO SECTION ===== */}
         <View style={styles.heroSection}>
-          <FloatingParticles />
-
           <Animated.View
             style={{
-              transform: [{ scale: titleScale }],
-              opacity: titleOpacity,
+              opacity: Animated.multiply(heroOpacity, heroScrollOpacity),
+              transform: [
+                { scale: Animated.multiply(heroScale, heroScrollScale) },
+              ],
             }}
           >
-            <Text style={styles.heroEmoji}>🎮</Text>
-            <Text style={styles.heroTitle}>Faith</Text>
-            <Text style={styles.heroTitleAccent}>Games</Text>
+            <WoodenTitle />
           </Animated.View>
 
-          <Animated.View
-            style={{
-              opacity: subtitleOpacity,
-              transform: [{ translateY: subtitleTranslateY }],
-            }}
-          >
-            <Text style={styles.heroSubtitle}>
-              Bible games that bring{'\n'}friends & families together
-            </Text>
-          </Animated.View>
-
-          <Animated.View style={{ opacity: subtitleOpacity, marginTop: spacing.lg }}>
-            <View style={styles.heroChips}>
-              {['Fun', 'Faith', 'Fellowship'].map((word) => (
-                <View key={word} style={styles.heroChip}>
-                  <Text style={styles.heroChipText}>{word}</Text>
-                </View>
-              ))}
-            </View>
-          </Animated.View>
+          <ScrollDownIndicator scrollY={scrollY} />
         </View>
 
-        {/* Section 2: Running Characters */}
-        <View style={styles.marqueeSection}>
-          <Text style={styles.sectionLabel}>BIBLE CHARACTERS</Text>
-          <MarqueeRow names={BIBLE_NAMES_ROW1} speed={20000} />
-          <MarqueeRow names={BIBLE_NAMES_ROW2} speed={25000} reverse />
-          <MarqueeRow names={BIBLE_NAMES_ROW3} speed={18000} />
-        </View>
-
-        {/* Section 3: Game Showcase */}
-        <View style={styles.gameSection}>
+        {/* ===== GAMES SHOWCASE ===== */}
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>4 Awesome Games</Text>
           <Text style={styles.sectionSubtitle}>Something for everyone</Text>
 
@@ -358,13 +217,13 @@ export default function WelcomeScreen() {
                       {
                         scale: cardAnims[i].interpolate({
                           inputRange: [0, 1],
-                          outputRange: [0.7, 1],
+                          outputRange: [0.8, 1],
                         }),
                       },
                       {
                         translateY: cardAnims[i].interpolate({
                           inputRange: [0, 1],
-                          outputRange: [30, 0],
+                          outputRange: [20, 0],
                         }),
                       },
                     ],
@@ -381,8 +240,41 @@ export default function WelcomeScreen() {
           </View>
         </View>
 
-        {/* Section 4: Features */}
-        <View style={styles.featureSection}>
+        {/* ===== ABOUT FAITH GAMES ===== */}
+        <Animated.View
+          style={[
+            styles.section,
+            {
+              opacity: aboutAnim,
+              transform: [{
+                translateY: aboutAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0],
+                }),
+              }],
+            },
+          ]}
+        >
+          <Text style={styles.sectionTitle}>About Faith Games</Text>
+          <Text style={styles.missionText}>
+            Bringing families and churches together through fun, faith-filled games rooted in Scripture.
+          </Text>
+
+          <View style={styles.aboutGrid}>
+            {ABOUT_ITEMS.map((item) => (
+              <View key={item.title} style={styles.aboutItem}>
+                <View style={styles.aboutIcon}>
+                  <Ionicons name={item.icon} size={22} color="#0891b2" />
+                </View>
+                <Text style={styles.aboutItemTitle}>{item.title}</Text>
+                <Text style={styles.aboutItemDesc}>{item.desc}</Text>
+              </View>
+            ))}
+          </View>
+        </Animated.View>
+
+        {/* ===== WHY FAITH GAMES ===== */}
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Why You'll Love It</Text>
 
           {FEATURES.map((feature, i) => (
@@ -392,19 +284,17 @@ export default function WelcomeScreen() {
                 styles.featureRow,
                 {
                   opacity: featureAnims[i],
-                  transform: [
-                    {
-                      translateX: featureAnims[i].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-40, 0],
-                      }),
-                    },
-                  ],
+                  transform: [{
+                    translateX: featureAnims[i].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-30, 0],
+                    }),
+                  }],
                 },
               ]}
             >
               <View style={styles.featureIcon}>
-                <Ionicons name={feature.icon} size={24} color={colors.gold} />
+                <Ionicons name={feature.icon} size={24} color="#0891b2" />
               </View>
               <View style={styles.featureText}>
                 <Text style={styles.featureTitle}>{feature.title}</Text>
@@ -414,22 +304,27 @@ export default function WelcomeScreen() {
           ))}
         </View>
 
-        {/* Section 5: CTA */}
+        {/* ===== CTA ===== */}
         <Animated.View
           style={[
             styles.ctaSection,
             {
-              opacity: ctaOpacity,
-              transform: [{ translateY: ctaTranslateY }],
+              opacity: ctaAnim,
+              transform: [{
+                translateY: ctaAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0],
+                }),
+              }],
             },
           ]}
         >
           <Text style={styles.ctaTitle}>Ready to Play?</Text>
 
           <Animated.View style={{ transform: [{ scale: buttonPulse }], width: '100%' }}>
-            <Pressable onPress={handleGetStarted} style={styles.ctaButton}>
-              <Text style={styles.ctaButtonText}>Get Started</Text>
-              <Ionicons name="arrow-forward" size={20} color={colors.white} />
+            <Pressable onPress={handlePlayNow} style={styles.ctaButton}>
+              <Text style={styles.ctaButtonText}>Play Now!</Text>
+              <Ionicons name="arrow-forward" size={20} color="#fff" />
             </Pressable>
           </Animated.View>
 
@@ -449,101 +344,48 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.navy,
+    backgroundColor: '#0891b2',
   },
 
-  // Hero
+  // Hero — takes up ~65% of screen, not 85%
   heroSection: {
     alignItems: 'center',
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.lg,
-    minHeight: SCREEN_HEIGHT * 0.45,
     justifyContent: 'center',
-  },
-  heroEmoji: {
-    fontSize: 56,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  heroTitle: {
-    fontSize: fontSize.hero,
-    fontWeight: fontWeight.extrabold,
-    color: colors.cream,
-    textAlign: 'center',
-    letterSpacing: -1,
-  },
-  heroTitleAccent: {
-    fontSize: fontSize.hero,
-    fontWeight: fontWeight.extrabold,
-    color: colors.gold,
-    textAlign: 'center',
-    letterSpacing: -1,
-    marginTop: -4,
-  },
-  heroSubtitle: {
-    fontSize: fontSize.lg,
-    color: colors.creamDim,
-    textAlign: 'center',
-    lineHeight: 26,
-    marginTop: spacing.md,
-  },
-  heroChips: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  heroChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: borderRadius.full,
-    backgroundColor: 'rgba(8, 145, 178, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(8, 145, 178, 0.2)',
-  },
-  heroChipText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    color: colors.gold,
-  },
-
-  // Marquee
-  marqueeSection: {
-    paddingVertical: spacing.xl,
-    overflow: 'hidden',
-  },
-  sectionLabel: {
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
-    color: colors.creamDim,
-    textAlign: 'center',
-    letterSpacing: 2,
-    marginBottom: spacing.md,
-  },
-
-  // Games
-  gameSection: {
+    minHeight: SH * 0.6,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
+  },
+
+  // Sections — tighter padding
+  section: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.md,
   },
   sectionTitle: {
     fontSize: fontSize.xxl,
     fontWeight: fontWeight.bold,
-    color: colors.cream,
+    color: '#fff',
     textAlign: 'center',
     marginBottom: spacing.xs,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   sectionSubtitle: {
     fontSize: fontSize.md,
-    color: colors.creamDim,
+    color: 'rgba(255,255,255,0.75)',
     textAlign: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
+
+  // Games grid
   gameGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.md,
   },
   gameCard: {
-    width: (SCREEN_WIDTH - spacing.lg * 2 - spacing.md) / 2,
+    width: (SW - spacing.lg * 2 - spacing.md) / 2,
     borderRadius: borderRadius.xxl,
     borderWidth: 2,
     padding: spacing.lg,
@@ -567,27 +409,64 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  // Features
-  featureSection: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
+  // About
+  missionText: {
+    fontSize: fontSize.md,
+    color: 'rgba(255,255,255,0.85)',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.sm,
   },
+  aboutGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  aboutItem: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: borderRadius.xl,
+    padding: spacing.md,
+  },
+  aboutIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  aboutItemTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.bold,
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  aboutItemDesc: {
+    fontSize: fontSize.xs,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+  },
+
+  // Features
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.lg,
-    backgroundColor: colors.navyLight,
+    marginTop: spacing.md,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(15, 23, 42, 0.08)',
-    ...shadows.sm,
   },
   featureIcon: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: 'rgba(8, 145, 178, 0.1)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
@@ -598,28 +477,32 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.bold,
-    color: colors.cream,
+    color: '#fff',
     marginBottom: 2,
   },
   featureDesc: {
     fontSize: fontSize.sm,
-    color: colors.creamDim,
+    color: 'rgba(255,255,255,0.75)',
   },
 
   // CTA
   ctaSection: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xxl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
     alignItems: 'center',
   },
   ctaTitle: {
     fontSize: fontSize.xxl,
     fontWeight: fontWeight.bold,
-    color: colors.cream,
-    marginBottom: spacing.xl,
+    color: '#fff',
+    marginBottom: spacing.lg,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   ctaButton: {
-    backgroundColor: colors.gold,
+    backgroundColor: '#f59e0b',
     borderRadius: borderRadius.xl,
     paddingVertical: spacing.md + 2,
     flexDirection: 'row',
@@ -631,7 +514,7 @@ const styles = StyleSheet.create({
   ctaButtonText: {
     fontSize: fontSize.lg,
     fontWeight: fontWeight.bold,
-    color: colors.white,
+    color: '#fff',
   },
   signInLink: {
     marginTop: spacing.lg,
@@ -639,33 +522,10 @@ const styles = StyleSheet.create({
   },
   signInText: {
     fontSize: fontSize.md,
-    color: colors.creamDim,
+    color: 'rgba(255,255,255,0.7)',
   },
   signInBold: {
-    color: colors.gold,
+    color: '#fff',
     fontWeight: fontWeight.bold,
-  },
-})
-
-const marqueeStyles = StyleSheet.create({
-  row: {
-    height: 44,
-    marginVertical: 4,
-    overflow: 'hidden',
-  },
-  inner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginHorizontal: 5,
-    borderWidth: 1,
-  },
-  pillText: {
-    fontSize: 13,
-    fontWeight: '600',
   },
 })

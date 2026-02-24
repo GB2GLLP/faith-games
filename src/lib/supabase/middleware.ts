@@ -29,8 +29,15 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Redirect unauthenticated /dashboard visitors to /games
+  if (request.nextUrl.pathname.startsWith('/dashboard') && !user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/games'
+    return NextResponse.redirect(url)
+  }
+
   // Protected routes - redirect to login if not authenticated
-  const protectedPaths = ['/dashboard', '/games', '/stats', '/leaderboard', '/profile', '/subscription', '/church', '/super']
+  const protectedPaths = ['/profile', '/subscription', '/church', '/super']
   const isProtected = protectedPaths.some((path) => request.nextUrl.pathname.startsWith(path))
 
   if (isProtected && !user) {

@@ -76,91 +76,154 @@ export default function SignupScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.xl }]}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles.outerContainer}>
+      {/* Decorative background elements */}
+      <View style={styles.bgCircleTop} />
+      <View style={styles.bgCircleBottom} />
+      <View style={styles.bgCross}>
+        <View style={styles.crossVertical} />
+        <View style={styles.crossHorizontal} />
+      </View>
+
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-          <View style={styles.header}>
-            <Text style={styles.logo}>🎮</Text>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join the fun!</Text>
-          </View>
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.xl }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+            <View style={styles.header}>
+              <View style={styles.logoCircle}>
+                <View style={styles.crossIcon}>
+                  <View style={styles.crossIconV} />
+                  <View style={styles.crossIconH} />
+                </View>
+              </View>
+              <Text style={styles.title}>Create Account</Text>
+              <Text style={styles.subtitle}>Join the faith-filled fun!</Text>
+            </View>
 
-          <View style={styles.formCard}>
-            <Input
-              label="Display Name"
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="Your name"
-              autoCapitalize="words"
-              error={errors.displayName}
-            />
-
-            <Input
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="your@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              error={errors.email}
-              containerStyle={{ marginTop: spacing.md }}
-            />
-
-            <Input
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="At least 6 characters"
-              secureTextEntry
-              error={errors.password}
-              containerStyle={{ marginTop: spacing.md }}
-            />
-
-            <View style={{ marginTop: spacing.md }}>
-              <ChurchCodeInput
-                value={churchCode}
-                onChangeText={setChurchCode}
-                error={errors.churchCode}
+            <View style={styles.formCard}>
+              <Input
+                label="Display Name"
+                value={displayName}
+                onChangeText={setDisplayName}
+                placeholder="Your name"
+                autoCapitalize="words"
+                error={errors.displayName}
               />
+
+              <Input
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="your@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                error={errors.email}
+                containerStyle={{ marginTop: spacing.md }}
+              />
+
+              <Input
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="At least 6 characters"
+                secureTextEntry
+                showPasswordToggle
+                error={errors.password}
+                containerStyle={{ marginTop: spacing.md }}
+              />
+
+              <View style={{ marginTop: spacing.md }}>
+                <ChurchCodeInput
+                  value={churchCode}
+                  onChangeText={setChurchCode}
+                  error={errors.churchCode}
+                />
+              </View>
+
+              <Button
+                onPress={handleSignup}
+                loading={loading}
+                fullWidth
+                style={{ marginTop: spacing.lg }}
+              >
+                Create Account
+              </Button>
             </View>
 
-            <Button
-              onPress={handleSignup}
-              loading={loading}
-              fullWidth
-              style={{ marginTop: spacing.lg }}
-            >
-              Create Account
-            </Button>
-          </View>
-
-          <View style={styles.footer}>
-            <View style={styles.loginRow}>
-              <Text style={styles.footerText}>Already have an account? </Text>
-              <Link href="/login" asChild>
-                <Pressable>
-                  <Text style={styles.link}>Sign in</Text>
-                </Pressable>
-              </Link>
+            <View style={styles.footer}>
+              <View style={styles.loginRow}>
+                <Text style={styles.footerText}>Already have an account? </Text>
+                <Link href="/login" asChild>
+                  <Pressable>
+                    <Text style={styles.link}>Sign in</Text>
+                  </Pressable>
+                </Link>
+              </View>
             </View>
-          </View>
-        </Animated.View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
-    backgroundColor: colors.navy,
+    backgroundColor: '#f0fdfa',
+  },
+  bgCircleTop: {
+    position: 'absolute',
+    top: -100,
+    right: -80,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: colors.gold,
+    opacity: 0.08,
+  },
+  bgCircleBottom: {
+    position: 'absolute',
+    bottom: -60,
+    left: -100,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: colors.goldLight,
+    opacity: 0.06,
+  },
+  bgCross: {
+    position: 'absolute',
+    top: '15%' as any,
+    left: 30,
+    opacity: 0.04,
+  },
+  crossVertical: {
+    width: 12,
+    height: 60,
+    backgroundColor: colors.gold,
+    borderRadius: 6,
+    position: 'absolute',
+    left: 24,
+    top: 0,
+  },
+  crossHorizontal: {
+    width: 60,
+    height: 12,
+    backgroundColor: colors.gold,
+    borderRadius: 6,
+    position: 'absolute',
+    left: 0,
+    top: 16,
+  },
+  keyboardView: {
+    flex: 1,
   },
   scroll: {
     flexGrow: 1,
@@ -170,9 +233,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xl,
   },
-  logo: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
+  logoCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.gold,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    ...shadows.colored(colors.gold),
+  },
+  crossIcon: {
+    width: 28,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  crossIconV: {
+    position: 'absolute',
+    width: 6,
+    height: 36,
+    backgroundColor: '#ffffff',
+    borderRadius: 3,
+  },
+  crossIconH: {
+    position: 'absolute',
+    width: 22,
+    height: 6,
+    backgroundColor: '#ffffff',
+    borderRadius: 3,
+    top: 8,
   },
   title: {
     fontSize: fontSize.display,

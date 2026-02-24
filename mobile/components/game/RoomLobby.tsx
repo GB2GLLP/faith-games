@@ -85,11 +85,23 @@ export function RoomLobby({
     : true
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.outerContainer}>
+      {/* Biblical background elements */}
+      <View style={styles.bgCross1}>
+        <View style={styles.crossV} />
+        <View style={styles.crossH} />
+      </View>
+      <View style={styles.bgCross2}>
+        <View style={[styles.crossV, { height: 40, width: 8 }]} />
+        <View style={[styles.crossH, { width: 30, height: 8, top: 10 }]} />
+      </View>
+      <View style={styles.bgDove} />
+      <View style={styles.bgSunrise} />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
       <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
         {/* Header */}
         <View style={styles.header}>
@@ -159,14 +171,73 @@ export function RoomLobby({
           </TouchableOpacity>
         </View>
       </Animated.View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: '#FFF9F0',
+  },
+  bgCross1: {
+    position: 'absolute',
+    top: 60,
+    right: 30,
+    opacity: 0.06,
+  },
+  bgCross2: {
+    position: 'absolute',
+    bottom: 140,
+    left: 24,
+    opacity: 0.05,
+  },
+  crossV: {
+    width: 12,
+    height: 70,
+    backgroundColor: '#B45309',
+    borderRadius: 6,
+    position: 'absolute',
+    left: 24,
+    top: 0,
+  },
+  crossH: {
+    width: 60,
+    height: 12,
+    backgroundColor: '#B45309',
+    borderRadius: 6,
+    position: 'absolute',
+    left: 0,
+    top: 18,
+  },
+  bgDove: {
+    position: 'absolute',
+    top: 280,
+    right: -20,
+    width: 80,
+    height: 50,
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 40,
+    backgroundColor: '#D97706',
+    opacity: 0.04,
+    transform: [{ rotate: '-15deg' }],
+  },
+  bgSunrise: {
+    position: 'absolute',
+    bottom: -60,
+    alignSelf: 'center',
+    left: '25%' as any,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: '#F59E0B',
+    opacity: 0.05,
+  },
   container: {
     flex: 1,
-    backgroundColor: colors.navyLight,
   },
   content: {
     padding: spacing.lg,
@@ -181,7 +252,7 @@ const styles = StyleSheet.create({
   gameTitle: {
     fontSize: fontSize.xxl,
     fontWeight: fontWeight.bold,
-    color: colors.cream,
+    color: '#78350F',
   },
   codeCard: {
     backgroundColor: colors.white,
@@ -193,19 +264,19 @@ const styles = StyleSheet.create({
   },
   codeLabel: {
     fontSize: fontSize.sm,
-    color: colors.cream,
-    opacity: 0.5,
+    color: '#92400E',
+    opacity: 0.6,
     marginBottom: spacing.xs,
   },
   codeText: {
     fontSize: fontSize.hero,
     fontWeight: fontWeight.extrabold,
-    color: colors.gold,
+    color: '#B45309',
     letterSpacing: 8,
     marginBottom: spacing.md,
   },
   shareButton: {
-    backgroundColor: colors.gold + '15',
+    backgroundColor: '#F59E0B20',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
@@ -213,7 +284,7 @@ const styles = StyleSheet.create({
   shareButtonText: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.semibold,
-    color: colors.gold,
+    color: '#B45309',
   },
   section: {
     marginBottom: spacing.lg,
@@ -221,7 +292,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: fontSize.lg,
     fontWeight: fontWeight.semibold,
-    color: colors.cream,
+    color: '#78350F',
     marginBottom: spacing.sm,
   },
   settingsCard: {
@@ -238,8 +309,8 @@ const styles = StyleSheet.create({
   settingsLabel: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: colors.cream,
-    opacity: 0.6,
+    color: '#92400E',
+    opacity: 0.7,
     marginBottom: spacing.sm,
   },
   actions: {
@@ -254,7 +325,7 @@ const styles = StyleSheet.create({
     ...shadows.colored(colors.green),
   },
   startButtonDisabled: {
-    backgroundColor: colors.cream + '20',
+    backgroundColor: '#92400E30',
     ...shadows.sm,
   },
   startButtonText: {
@@ -263,17 +334,17 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   waitingCard: {
-    backgroundColor: colors.gold + '10',
+    backgroundColor: '#F59E0B15',
     borderRadius: borderRadius.xl,
     padding: spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.gold + '30',
+    borderColor: '#F59E0B30',
   },
   waitingText: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.medium,
-    color: colors.gold,
+    color: '#B45309',
   },
   leaveButton: {
     padding: spacing.md,

@@ -9,6 +9,8 @@ import { useGameContent } from '@/hooks/useGameContent'
 import { PlayerSetup, ScoreBoard, GrabButton, GameOverScreen, DifficultySelector, CategoryFilter } from '@/components/game'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
+import { useAuthGate } from '@/hooks/useAuthGate'
+import { AuthGateModal } from '@/components/auth/AuthGateModal'
 import { GAME_CONFIG, CATEGORIES } from '@/lib/constants'
 import type { Database } from '@/lib/types/database'
 
@@ -19,6 +21,7 @@ export default function GuessVersePage() {
   const game = useGameStore()
   const verse = useGuessVerseStore()
   const revealInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+  const { showAuthModal, setShowAuthModal, requireAuth, onAuthSuccess } = useAuthGate()
   const [playerChoosing, setPlayerChoosing] = useState<string | null>(null)
   const [answerCorrect, setAnswerCorrect] = useState<boolean | null>(null)
 
@@ -128,7 +131,7 @@ export default function GuessVersePage() {
               <PlayerSetup
                 minPlayers={GAME_CONFIG.GUESS_VERSE.MIN_PLAYERS}
                 maxPlayers={8}
-                onReady={() => game.setPhase('ready')}
+                onReady={() => requireAuth(() => game.setPhase('ready'))}
               />
             </div>
           </motion.div>
@@ -236,6 +239,7 @@ export default function GuessVersePage() {
           </motion.div>
         )}
       </AnimatePresence>
+      <AuthGateModal open={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={onAuthSuccess} />
     </div>
   )
 }

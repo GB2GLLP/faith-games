@@ -12,6 +12,8 @@ import { useGameContent } from '@/hooks/useGameContent'
 import { PlayerSetup, Timer, ScoreBoard, ForeheadDisplay, SwipeHandler, GameOverScreen, DifficultySelector, CategoryFilter, TurnIndicator } from '@/components/game'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
+import { useAuthGate } from '@/hooks/useAuthGate'
+import { AuthGateModal } from '@/components/auth/AuthGateModal'
 import { GAME_CONFIG, CATEGORIES } from '@/lib/constants'
 import type { Database } from '@/lib/types/database'
 
@@ -22,6 +24,7 @@ export default function CharadesPage() {
   const game = useGameStore()
   const charades = useCharadesStore()
   const { request: requestWakeLock, release: releaseWakeLock } = useWakeLock()
+  const { showAuthModal, setShowAuthModal, requireAuth, onAuthSuccess } = useAuthGate()
 
   const { data: scenes, loading: contentLoading } = useGameContent<BibleScene>({
     table: 'bible_scenes',
@@ -132,7 +135,7 @@ export default function CharadesPage() {
               <PlayerSetup
                 minPlayers={GAME_CONFIG.CHARADES.MIN_PLAYERS}
                 maxPlayers={12}
-                onReady={() => game.setPhase('ready')}
+                onReady={() => requireAuth(() => game.setPhase('ready'))}
               />
             </div>
           </motion.div>
@@ -193,6 +196,7 @@ export default function CharadesPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      <AuthGateModal open={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={onAuthSuccess} />
     </div>
   )
 }

@@ -23,7 +23,7 @@ export default function HomePage() {
         </p>
         <div className="flex flex-col sm:flex-row gap-4">
           <Link
-            href="/signup"
+            href="/games"
             className="px-8 py-3 bg-gold text-navy font-semibold rounded-lg hover:bg-gold-light transition-colors"
           >
             Get Started Free
@@ -90,10 +90,10 @@ export default function HomePage() {
           Create an account, invite your church group, and start playing in minutes.
         </p>
         <Link
-          href="/signup"
+          href="/games"
           className="inline-block px-8 py-3 bg-gold text-navy font-semibold rounded-lg hover:bg-gold-light transition-colors"
         >
-          Sign Up Now
+          Browse Games
         </Link>
       </section>
 

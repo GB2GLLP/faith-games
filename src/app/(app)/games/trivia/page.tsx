@@ -9,6 +9,8 @@ import { useGameContent } from '@/hooks/useGameContent'
 import { PlayerSetup, ScoreBoard, GrabButton, GameOverScreen, DifficultySelector, CategoryFilter } from '@/components/game'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
+import { useAuthGate } from '@/hooks/useAuthGate'
+import { AuthGateModal } from '@/components/auth/AuthGateModal'
 import { GAME_CONFIG, CATEGORIES } from '@/lib/constants'
 import type { Database } from '@/lib/types/database'
 
@@ -18,6 +20,7 @@ export default function TriviaPage() {
   const router = useRouter()
   const game = useGameStore()
   const trivia = useTriviaStore()
+  const { showAuthModal, setShowAuthModal, requireAuth, onAuthSuccess } = useAuthGate()
   const [phase, setPhase] = useState<'question' | 'grabbed' | 'result' | 'passed'>('question')
 
   const { data: questions, loading: contentLoading } = useGameContent<TriviaQuestion>({
@@ -114,7 +117,7 @@ export default function TriviaPage() {
               <PlayerSetup
                 minPlayers={GAME_CONFIG.TRIVIA.MIN_PLAYERS}
                 maxPlayers={8}
-                onReady={() => game.setPhase('ready')}
+                onReady={() => requireAuth(() => game.setPhase('ready'))}
               />
             </div>
           </motion.div>
@@ -247,6 +250,7 @@ export default function TriviaPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      <AuthGateModal open={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={onAuthSuccess} />
     </div>
   )
 }

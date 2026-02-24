@@ -1,5 +1,5 @@
-import { useEffect, useCallback, useRef } from 'react'
-import { View, Text, ScrollView, StyleSheet, Animated } from 'react-native'
+import { useEffect, useCallback, useRef, useState } from 'react'
+import { View, Text, ScrollView, StyleSheet, Animated, Pressable, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -39,6 +39,7 @@ export default function CharadesScreen() {
   const activePlayerId = game.players[game.currentPlayerIndex]?.id
   const isActivePlayer = myUserId === activePlayerId
   const currentPlayer = game.players[game.currentPlayerIndex]
+  const [showRotateScreen, setShowRotateScreen] = useState(false)
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current
@@ -159,6 +160,11 @@ export default function CharadesScreen() {
     if (!isHost) return
     await requestWakeLock()
     charades.startRound()
+    setShowRotateScreen(true)
+  }
+
+  const beginPlaying = () => {
+    setShowRotateScreen(false)
     game.setPhase('playing')
     timer.reset()
     timer.start()
@@ -202,6 +208,42 @@ export default function CharadesScreen() {
     }
   }, [currentScene?.id])
 
+  // Handle running out of scenes (must be before any early returns to avoid hooks violation)
+  const ranOutOfScenes = game.phase === 'playing' && isActivePlayer && !currentScene
+  useEffect(() => {
+    if (!ranOutOfScenes) return
+    releaseWakeLock()
+    timer.pause()
+    if (isHost) {
+      const cp = game.players[game.currentPlayerIndex]
+      if (cp) game.updateScore(cp.id, charades.correctCount)
+      game.setPhase('turn_end')
+      sendEvent({ type: 'timer:end' })
+    }
+  }, [ranOutOfScenes])
+
+  const handleExit = () => {
+    Alert.alert(
+      'Leave Game',
+      'Are you sure you want to leave?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: () => {
+            releaseWakeLock()
+            timer.pause()
+            room.leaveRoom()
+            game.reset()
+            charades.reset()
+            router.replace('/(app)/games')
+          },
+        },
+      ]
+    )
+  }
+
   if (contentLoading) {
     return (
       <View style={styles.center}>
@@ -226,10 +268,43 @@ export default function CharadesScreen() {
     )
   }
 
+  // Rotate Phone Interstitial — must be checked BEFORE the ready phase
+  if (showRotateScreen) {
+    return (
+      <Pressable style={styles.rotateContainer} onPress={beginPlaying}>
+        <Pressable style={[styles.exitButton, { top: insets.top + spacing.sm }]} onPress={handleExit} hitSlop={12}>
+          <Ionicons name="close" size={22} color="rgba(255,255,255,0.7)" />
+        </Pressable>
+        <View style={styles.rotateContent}>
+          <Ionicons name="phone-landscape-outline" size={80} color={colors.gold} />
+          <Text style={styles.rotateTitle}>Rotate Your Phone</Text>
+          <Text style={styles.rotateSubtext}>
+            Hold the phone on your forehead in landscape mode
+          </Text>
+          <View style={styles.rotateTiltRow}>
+            <View style={[styles.rotateTiltCard, { backgroundColor: '#D1FAE5' }]}>
+              <Ionicons name="arrow-down" size={20} color={colors.green} />
+              <Text style={[styles.rotateTiltText, { color: '#065f46' }]}>Tilt down = Correct</Text>
+            </View>
+            <View style={[styles.rotateTiltCard, { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons name="arrow-up" size={20} color={colors.red} />
+              <Text style={[styles.rotateTiltText, { color: '#991b1b' }]}>Tilt up = Skip</Text>
+            </View>
+          </View>
+          <Text style={styles.rotateTap}>Tap anywhere when ready</Text>
+        </View>
+      </Pressable>
+    )
+  }
+
   // Ready Phase
   if ((game.phase === 'setup' || game.phase === 'ready') && currentPlayer) {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.md }]}>
+      <View style={{ flex: 1 }}>
+        <Pressable style={[styles.exitButton, { top: insets.top + spacing.sm }]} onPress={handleExit} hitSlop={12}>
+          <Ionicons name="close" size={22} color={colors.creamDim} />
+        </Pressable>
+        <ScrollView style={styles.container} contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.md + 32 }]}>
         <Animated.View style={[styles.readyContainer, { opacity: fadeAnim }]}>
           <ConnectionStatus isConnected={room.isConnected} playerCount={room.playerCount()} />
 
@@ -276,6 +351,7 @@ export default function CharadesScreen() {
           </View>
         </Animated.View>
       </ScrollView>
+      </View>
     )
   }
 
@@ -295,6 +371,9 @@ export default function CharadesScreen() {
   if (game.phase === 'playing' && !isActivePlayer) {
     return (
       <View style={[styles.spectatorContainer, { paddingTop: insets.top + spacing.lg }]}>
+        <Pressable style={[styles.exitButton, { top: insets.top + spacing.sm }]} onPress={handleExit} hitSlop={12}>
+          <Ionicons name="close" size={22} color={colors.creamDim} />
+        </Pressable>
         <ConnectionStatus isConnected={room.isConnected} />
         <View style={styles.spectatorCard}>
           <Text style={styles.spectatorEmoji}>🎭</Text>
@@ -318,23 +397,14 @@ export default function CharadesScreen() {
     )
   }
 
-  // Playing but no scene (ran out)
-  if (game.phase === 'playing' && isActivePlayer && !currentScene) {
-    releaseWakeLock()
-    timer.pause()
-    if (isHost) {
-      const cp = game.players[game.currentPlayerIndex]
-      if (cp) game.updateScore(cp.id, charades.correctCount)
-      game.setPhase('turn_end')
-      sendEvent({ type: 'timer:end' })
-    }
-    return null
-  }
-
   // Turn End
   if (game.phase === 'turn_end' && currentPlayer) {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.md }]}>
+      <View style={{ flex: 1 }}>
+        <Pressable style={[styles.exitButton, { top: insets.top + spacing.sm }]} onPress={handleExit} hitSlop={12}>
+          <Ionicons name="close" size={22} color={colors.creamDim} />
+        </Pressable>
+        <ScrollView style={styles.container} contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.md + 32 }]}>
         <Animated.View style={[styles.turnEndContainer, { opacity: fadeAnim }]}>
           <Text style={styles.heading}>Time's Up!</Text>
           <View style={styles.bigScoreCard}>
@@ -365,6 +435,7 @@ export default function CharadesScreen() {
           )}
         </Animated.View>
       </ScrollView>
+      </View>
     )
   }
 
@@ -574,5 +645,62 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.creamDim,
     marginTop: spacing.xs,
+  },
+  rotateContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0B1437',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 60,
+  },
+  rotateContent: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    gap: spacing.lg,
+  },
+  rotateTitle: {
+    fontSize: fontSize.xxxl,
+    fontWeight: fontWeight.bold,
+    color: '#ffffff',
+    textAlign: 'center',
+  },
+  rotateSubtext: {
+    fontSize: fontSize.lg,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+    lineHeight: 26,
+  },
+  rotateTiltRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  rotateTiltCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.xl,
+  },
+  rotateTiltText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+  },
+  rotateTap: {
+    fontSize: fontSize.md,
+    color: 'rgba(255,255,255,0.35)',
+    marginTop: spacing.lg,
+  },
+  exitButton: {
+    position: 'absolute',
+    left: spacing.md,
+    zIndex: 50,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 })

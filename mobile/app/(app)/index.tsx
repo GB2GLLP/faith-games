@@ -23,7 +23,7 @@ const quickPlayGames = [
     title: 'Charades',
     desc: 'Act it out!',
     icon: 'body' as const,
-    route: '/(app)/games/charades',
+    gameType: 'charades' as const,
     bg: '#FEF3C7',
     color: '#f59e0b',
     dark: '#92400e',
@@ -32,7 +32,7 @@ const quickPlayGames = [
     title: 'Who Am I?',
     desc: 'Guess the character',
     icon: 'help-circle' as const,
-    route: '/(app)/games/who-am-i',
+    gameType: 'who_am_i' as const,
     bg: '#DBEAFE',
     color: '#3b82f6',
     dark: '#1e3a8a',
@@ -41,7 +41,7 @@ const quickPlayGames = [
     title: 'Guess Verse',
     desc: 'Word by word',
     icon: 'book' as const,
-    route: '/(app)/games/guess-verse',
+    gameType: 'guess_verse' as const,
     bg: '#D1FAE5',
     color: '#10b981',
     dark: '#064e3b',
@@ -50,7 +50,7 @@ const quickPlayGames = [
     title: 'Trivia',
     desc: 'Test your knowledge',
     icon: 'bulb' as const,
-    route: '/(app)/games/trivia',
+    gameType: 'trivia' as const,
     bg: '#EDE9FE',
     color: '#8b5cf6',
     dark: '#4c1d95',
@@ -294,7 +294,7 @@ export default function DashboardScreen() {
             key={g.title}
             game={g}
             index={i}
-            onPress={() => router.push(g.route as any)}
+            onPress={() => router.push({ pathname: '/(app)/games/room', params: { gameType: g.gameType } })}
           />
         ))}
       </View>

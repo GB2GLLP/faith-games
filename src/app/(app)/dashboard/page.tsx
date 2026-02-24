@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useAuthStore } from '@/stores/authStore'
 import { createClient } from '@/lib/supabase/client'
@@ -18,10 +19,17 @@ const quickPlayGames = [
 ]
 
 export default function DashboardPage() {
-  const { user } = useAuthStore()
+  const router = useRouter()
+  const { user, initialized } = useAuthStore()
   const [recentGames, setRecentGames] = useState<any[]>([])
   const [stats, setStats] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (initialized && !user) {
+      router.replace('/games')
+    }
+  }, [initialized, user, router])
 
   useEffect(() => {
     async function loadData() {

@@ -11,6 +11,8 @@ import { useGameContent } from '@/hooks/useGameContent'
 import { TeamSetup, ScoreBoard, ForeheadDisplay, SwipeHandler, GameOverScreen, DifficultySelector, CategoryFilter } from '@/components/game'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
+import { useAuthGate } from '@/hooks/useAuthGate'
+import { AuthGateModal } from '@/components/auth/AuthGateModal'
 import { GAME_CONFIG, CATEGORIES } from '@/lib/constants'
 import type { Database } from '@/lib/types/database'
 
@@ -21,6 +23,7 @@ export default function WhoAmIPage() {
   const game = useGameStore()
   const whoAmI = useWhoAmIStore()
   const { request: requestWakeLock, release: releaseWakeLock } = useWakeLock()
+  const { showAuthModal, setShowAuthModal, requireAuth, onAuthSuccess } = useAuthGate()
   const [showHints, setShowHints] = useState(false)
 
   const { data: characters, loading: contentLoading } = useGameContent<BibleCharacter>({
@@ -114,7 +117,7 @@ export default function WhoAmIPage() {
               <TeamSetup
                 minPlayers={GAME_CONFIG.WHO_AM_I.MIN_PLAYERS}
                 maxPlayers={12}
-                onReady={() => game.setPhase('ready')}
+                onReady={() => requireAuth(() => game.setPhase('ready'))}
               />
             </div>
           </motion.div>
@@ -177,6 +180,7 @@ export default function WhoAmIPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      <AuthGateModal open={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={onAuthSuccess} />
     </div>
   )
 }
