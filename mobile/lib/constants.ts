@@ -1,9 +1,16 @@
+// † "Jesus Christ is the same yesterday and today and forever" — Hebrews 13:8
 export const APP_NAME = 'Faith Games'
 
 export const GAME_CONFIG = {
   CHARADES: {
     DEFAULT_TIMER: 60,
     MIN_PLAYERS: 2,
+    TIMER_BY_DIFFICULTY: {
+      easy: 90,
+      medium: 60,
+      hard: 45,
+      all: 60,
+    } as Record<string, number>,
   },
   WHO_AM_I: {
     WIN_SCORE: 7,

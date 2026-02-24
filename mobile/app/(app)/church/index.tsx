@@ -1,5 +1,6 @@
+// † "You are the body of Christ, and each one of you is a part of it" — 1 Corinthians 12:27
 import { useEffect, useState } from 'react'
-import { View, Text, Pressable, ScrollView, FlatList, StyleSheet, Alert } from 'react-native'
+import { View, Text, Pressable, ScrollView, FlatList, StyleSheet, Alert, RefreshControl } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Clipboard from 'expo-clipboard'
@@ -21,27 +22,34 @@ export default function ChurchScreen() {
   const [church, setChurch] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const loadChurchData = async () => {
+    if (!user?.church_id) return
+    const supabase = createClient()
+    const churchId = user.church_id
+
+    const [churchRes, membersRes] = await Promise.all([
+      supabase.from('churches').select('*').eq('id', churchId).single(),
+      supabase
+        .from('church_memberships')
+        .select('*, users:user_id(id, display_name, email)')
+        .eq('church_id', churchId),
+    ])
+
+    setChurch(churchRes.data)
+    setMembers(membersRes.data || [])
+  }
 
   useEffect(() => {
-    async function load() {
-      if (!user?.church_id) return
-      const supabase = createClient()
-      const churchId = user.church_id
-
-      const [churchRes, membersRes] = await Promise.all([
-        supabase.from('churches').select('*').eq('id', churchId).single(),
-        supabase
-          .from('church_memberships')
-          .select('*, users:user_id(id, display_name, email)')
-          .eq('church_id', churchId),
-      ])
-
-      setChurch(churchRes.data)
-      setMembers(membersRes.data || [])
-      setLoading(false)
-    }
-    load()
+    loadChurchData().finally(() => setLoading(false))
   }, [user])
+
+  const onRefresh = async () => {
+    setRefreshing(true)
+    await loadChurchData()
+    setRefreshing(false)
+  }
 
   const copyCode = async () => {
     if (church?.code) {
@@ -66,6 +74,7 @@ export default function ChurchScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.md }]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold} />}
     >
       <Text style={styles.heading}>{church.name}</Text>
 

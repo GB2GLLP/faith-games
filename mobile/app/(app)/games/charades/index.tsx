@@ -1,5 +1,6 @@
+// † "Go and tell this people" — Isaiah 6:9
 import { useEffect, useCallback, useRef, useState } from 'react'
-import { View, Text, ScrollView, StyleSheet, Animated, Pressable, Alert } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, Animated, Pressable, Alert, Easing } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -19,7 +20,9 @@ import { ConnectionStatus } from '../../../../components/game/ConnectionStatus'
 import { WaitingOverlay } from '../../../../components/game/WaitingOverlay'
 import { Button } from '../../../../components/ui/Button'
 import { Spinner } from '../../../../components/ui/Spinner'
+import { createClient } from '../../../../lib/supabase/client'
 import { GAME_CONFIG, CATEGORIES } from '../../../../lib/constants'
+import { CharacterAvatar } from '../../../../components/game/CharacterAvatar'
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../../../../lib/theme'
 import type { Database } from '../../../../lib/types/database'
 import type { RoomEvent } from '../../../../lib/types/multiplayer'
@@ -40,9 +43,15 @@ export default function CharadesScreen() {
   const isActivePlayer = myUserId === activePlayerId
   const currentPlayer = game.players[game.currentPlayerIndex]
   const [showRotateScreen, setShowRotateScreen] = useState(false)
+  const [tiltResult, setTiltResult] = useState<'correct' | 'skip' | null>(null)
+  const tiltResultTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current
+  const tiltFlashScale = useRef(new Animated.Value(0)).current
+  const tiltFlashOpacity = useRef(new Animated.Value(0)).current
+  const tiltFlashTextScale = useRef(new Animated.Value(0.3)).current
+
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start()
   }, [game.phase])
@@ -69,13 +78,40 @@ export default function CharadesScreen() {
         })
         break
       case 'charades:tilt':
-        if (event.result === 'correct') {
-          charades.markCorrect()
-          if (isHost) {
+        // Only host processes tilt events (prevents double-counting)
+        if (isHost) {
+          if (event.result === 'correct') {
+            charades.markCorrect()
             game.updateScore(event.playerId, 1)
+          } else {
+            charades.markSkipped()
           }
-        } else {
-          charades.markSkipped()
+          // If host ran out of scenes, end the turn early
+          if (!useCharadesStore.getState().getCurrentScene()) {
+            const gs = useGameStore.getState()
+            gs.setPhase('turn_end')
+            sendEvent({ type: 'timer:end' })
+            sendEvent({
+              type: 'game:state',
+              state: {
+                phase: 'turn_end',
+                players: useGameStore.getState().players,
+                currentPlayerIndex: gs.currentPlayerIndex,
+              },
+            })
+          }
+        }
+        break
+      case 'charades:start_turn':
+        // Active player receives this — show rotate screen
+        if ((event as any).activePlayerId === myUserId) {
+          setShowRotateScreen(true)
+        }
+        break
+      case 'charades:player_ready':
+        // Host receives this — active player is ready, begin playing
+        if (isHost) {
+          beginPlayingRef.current()
         }
         break
       case 'timer:start':
@@ -91,62 +127,108 @@ export default function CharadesScreen() {
         game.setPhase('game_over')
         break
     }
-  }, [isHost])
+  }, [isHost, myUserId])
 
   const { sendEvent } = useMultiplayerGame(handleGameEvent)
 
   const handleTimerComplete = useCallback(() => {
     releaseWakeLock()
     if (isHost) {
-      const cp = game.players[game.currentPlayerIndex]
-      if (cp) {
-        game.updateScore(cp.id, charades.correctCount)
-      }
-      game.setPhase('turn_end')
+      // Score already tracked per-tilt — no bulk update here
+      const gs = useGameStore.getState()
+      gs.setPhase('turn_end')
       sendEvent({ type: 'timer:end' })
       sendEvent({
         type: 'game:state',
         state: {
           phase: 'turn_end',
           players: useGameStore.getState().players,
-          currentPlayerIndex: game.currentPlayerIndex,
+          currentPlayerIndex: gs.currentPlayerIndex,
         },
       })
     }
-  }, [game, charades.correctCount, releaseWakeLock, isHost])
+  }, [releaseWakeLock, isHost, sendEvent])
 
   const timer = useTimer({
     initialTime: game.timerDuration || GAME_CONFIG.CHARADES.DEFAULT_TIMER,
     onComplete: handleTimerComplete,
   })
 
+  const showTiltFlash = useCallback((result: 'correct' | 'skip') => {
+    setTiltResult(result)
+    if (tiltResultTimer.current) clearTimeout(tiltResultTimer.current)
+
+    // Reset animation values
+    tiltFlashScale.setValue(0)
+    tiltFlashOpacity.setValue(1)
+    tiltFlashTextScale.setValue(0.3)
+
+    // Animate in: scale burst + text bounce
+    Animated.parallel([
+      // Background scales in with overshoot
+      Animated.spring(tiltFlashScale, {
+        toValue: 1,
+        friction: 4,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+      // Text bounces in
+      Animated.spring(tiltFlashTextScale, {
+        toValue: 1,
+        friction: 3,
+        tension: 100,
+        useNativeDriver: true,
+      }),
+    ]).start()
+
+    // Fade out after delay
+    tiltResultTimer.current = setTimeout(() => {
+      Animated.timing(tiltFlashOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => setTiltResult(null))
+    }, 1200)
+  }, [])
+
   const handleCorrect = useCallback(() => {
-    charades.markCorrect()
+    showTiltFlash('correct')
+    // Only host advances scenes locally (non-host waits for host broadcast)
+    if (isHost) charades.markCorrect()
     if (isActivePlayer) {
       sendEvent({ type: 'charades:tilt', result: 'correct', playerId: myUserId! })
+      // Host won't receive own broadcast back, so score directly
+      if (isHost) {
+        game.updateScore(myUserId!, 1)
+      }
     }
-  }, [charades, isActivePlayer, myUserId])
+  }, [isHost, isActivePlayer, myUserId, sendEvent, showTiltFlash])
 
   const handleSkip = useCallback(() => {
-    charades.markSkipped()
+    showTiltFlash('skip')
+    if (isHost) charades.markSkipped()
     if (isActivePlayer) {
       sendEvent({ type: 'charades:tilt', result: 'skip', playerId: myUserId! })
     }
-  }, [charades, isActivePlayer, myUserId])
+  }, [isHost, isActivePlayer, myUserId, sendEvent, showTiltFlash])
 
+  // Tilt forward (nod) = correct, tilt back (lean) = skip
   useDeviceOrientation({
-    onTiltDown: handleCorrect,
-    onTiltUp: handleSkip,
+    onTiltDown: handleSkip,
+    onTiltUp: handleCorrect,
     enabled: game.phase === 'playing' && isActivePlayer,
   })
 
   useEffect(() => {
     game.setGameType('charades')
-    game.setTimerDuration(room.settings?.timerDuration || GAME_CONFIG.CHARADES.DEFAULT_TIMER)
+    // Set timer based on difficulty
+    const difficultyTimer = GAME_CONFIG.CHARADES.TIMER_BY_DIFFICULTY[game.difficulty] || GAME_CONFIG.CHARADES.DEFAULT_TIMER
+    game.setTimerDuration(room.settings?.timerDuration || difficultyTimer)
     requestPermission()
     return () => {
       game.reset()
       charades.reset()
+      if (tiltResultTimer.current) clearTimeout(tiltResultTimer.current)
     }
   }, [])
 
@@ -160,37 +242,56 @@ export default function CharadesScreen() {
     if (!isHost) return
     await requestWakeLock()
     charades.startRound()
-    setShowRotateScreen(true)
+
+    if (isActivePlayer) {
+      // Host is the active player — show rotate screen locally
+      setShowRotateScreen(true)
+    } else {
+      // Active player is someone else — tell them to show rotate screen
+      sendEvent({ type: 'charades:start_turn', activePlayerId: activePlayerId! } as any)
+    }
   }
 
   const beginPlaying = () => {
     setShowRotateScreen(false)
-    game.setPhase('playing')
-    timer.reset()
-    timer.start()
+    if (isHost) {
+      // Host starts the round
+      game.setPhase('playing')
+      timer.reset()
+      timer.start()
 
-    const scene = useCharadesStore.getState().getCurrentScene()
-    if (scene) {
-      sendEvent({
-        type: 'charades:scene',
-        scene: { id: scene.id, title: scene.title, description: scene.description },
-        activePlayerId: activePlayerId!,
-      })
+      const scene = useCharadesStore.getState().getCurrentScene()
+      if (scene) {
+        sendEvent({
+          type: 'charades:scene',
+          scene: { id: scene.id, title: scene.title, description: scene.description },
+          activePlayerId: activePlayerId!,
+        })
+      }
+      sendEvent({ type: 'timer:start', duration: game.timerDuration, startedAt: Date.now() })
+    } else {
+      // Non-host active player tapped ready — tell host to begin
+      sendEvent({ type: 'charades:player_ready', playerId: myUserId! } as any)
     }
-    sendEvent({ type: 'timer:start', duration: game.timerDuration, startedAt: Date.now() })
   }
+
+  // Stable ref so event handler can call beginPlaying
+  const beginPlayingRef = useRef(beginPlaying)
+  beginPlayingRef.current = beginPlaying
 
   const nextTurn = () => {
     if (!isHost) return
-    game.nextTurn()
+    const gs = useGameStore.getState()
+    gs.nextTurn()
     charades.reset()
-    game.setPhase('ready')
+    gs.setPhase('ready')
+    const updated = useGameStore.getState()
     sendEvent({
       type: 'game:state',
       state: {
         phase: 'ready',
-        players: game.players,
-        currentPlayerIndex: useGameStore.getState().currentPlayerIndex,
+        players: updated.players,
+        currentPlayerIndex: updated.currentPlayerIndex,
       },
     })
   }
@@ -215,12 +316,108 @@ export default function CharadesScreen() {
     releaseWakeLock()
     timer.pause()
     if (isHost) {
-      const cp = game.players[game.currentPlayerIndex]
-      if (cp) game.updateScore(cp.id, charades.correctCount)
+      // Score already tracked per-tilt — just end the turn
       game.setPhase('turn_end')
       sendEvent({ type: 'timer:end' })
+      sendEvent({
+        type: 'game:state',
+        state: {
+          phase: 'turn_end',
+          players: useGameStore.getState().players,
+          currentPlayerIndex: game.currentPlayerIndex,
+        },
+      })
     }
   }, [ranOutOfScenes])
+
+  // Log game session to Supabase
+  const gameLoggedRef = useRef(false)
+  const logGameSession = useCallback(async () => {
+    if (gameLoggedRef.current) return
+    gameLoggedRef.current = true
+
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const gs = useGameStore.getState()
+      const cs = useCharadesStore.getState()
+      const players = gs.players
+      const winner = players.reduce((a, b) => (a.score > b.score ? a : b), players[0])
+      const finalScores: Record<string, number> = {}
+      players.forEach((p) => { finalScores[p.name] = p.score })
+
+      const durationSeconds = gs.startTime ? Math.floor((Date.now() - gs.startTime) / 1000) : 0
+
+      // Get user's church_id
+      const { data: profile } = await supabase
+        .from('users' as any)
+        .select('church_id')
+        .eq('id', user.id)
+        .single()
+
+      // Insert game session
+      await (supabase.from('game_sessions' as any) as any).insert({
+        game_type: 'charades',
+        host_user_id: user.id,
+        church_id: (profile as any)?.church_id || null,
+        players: players.map((p) => ({ id: p.id, name: p.name, score: p.score, team: p.team })),
+        winner: winner?.name || null,
+        final_scores: finalScores,
+        duration_seconds: durationSeconds,
+      })
+
+      // Upsert game stats for the current user
+      const myPlayer = players.find((p) => p.id === user.id)
+      const myScore = myPlayer?.score || 0
+      const didWin = winner?.id === user.id
+
+      const { data: existingStats } = await supabase
+        .from('game_stats' as any)
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('game_type', 'charades')
+        .single()
+
+      if (existingStats) {
+        const stats = existingStats as any
+        await (supabase.from('game_stats' as any) as any)
+          .update({
+            games_played: stats.games_played + 1,
+            games_won: stats.games_won + (didWin ? 1 : 0),
+            total_score: stats.total_score + myScore,
+            best_score: Math.max(stats.best_score, myScore),
+            current_streak: didWin ? stats.current_streak + 1 : 0,
+            best_streak: didWin
+              ? Math.max(stats.best_streak, stats.current_streak + 1)
+              : stats.best_streak,
+          })
+          .eq('user_id', user.id)
+          .eq('game_type', 'charades')
+      } else {
+        await (supabase.from('game_stats' as any) as any).insert({
+          user_id: user.id,
+          game_type: 'charades',
+          games_played: 1,
+          games_won: didWin ? 1 : 0,
+          total_score: myScore,
+          best_score: myScore,
+          current_streak: didWin ? 1 : 0,
+          best_streak: didWin ? 1 : 0,
+        })
+      }
+    } catch (err) {
+      console.warn('Failed to log game session:', err)
+    }
+  }, [])
+
+  // Log game when it ends
+  useEffect(() => {
+    if (game.phase === 'game_over') {
+      logGameSession()
+    }
+  }, [game.phase])
 
   const handleExit = () => {
     Alert.alert(
@@ -284,11 +481,11 @@ export default function CharadesScreen() {
           <View style={styles.rotateTiltRow}>
             <View style={[styles.rotateTiltCard, { backgroundColor: '#D1FAE5' }]}>
               <Ionicons name="arrow-down" size={20} color={colors.green} />
-              <Text style={[styles.rotateTiltText, { color: '#065f46' }]}>Tilt down = Correct</Text>
+              <Text style={[styles.rotateTiltText, { color: '#065f46' }]}>Tilt forward = Correct</Text>
             </View>
             <View style={[styles.rotateTiltCard, { backgroundColor: '#FEE2E2' }]}>
               <Ionicons name="arrow-up" size={20} color={colors.red} />
-              <Text style={[styles.rotateTiltText, { color: '#991b1b' }]}>Tilt up = Skip</Text>
+              <Text style={[styles.rotateTiltText, { color: '#991b1b' }]}>Tilt back = Skip</Text>
             </View>
           </View>
           <Text style={styles.rotateTap}>Tap anywhere when ready</Text>
@@ -309,7 +506,7 @@ export default function CharadesScreen() {
           <ConnectionStatus isConnected={room.isConnected} playerCount={room.playerCount()} />
 
           <View style={styles.turnCard}>
-            <Text style={styles.turnEmoji}>🎭</Text>
+            <CharacterAvatar size={72} style={{ marginBottom: spacing.sm }} />
             <Text style={styles.turnLabel}>
               {isActivePlayer ? "It's Your Turn!" : `${currentPlayer.name}'s Turn`}
             </Text>
@@ -324,11 +521,11 @@ export default function CharadesScreen() {
             <View style={styles.tiltHints}>
               <View style={[styles.tiltHintCard, { backgroundColor: '#D1FAE5' }]}>
                 <Ionicons name="arrow-down" size={24} color={colors.green} />
-                <Text style={[styles.tiltHintText, { color: '#065f46' }]}>Tilt down = Correct</Text>
+                <Text style={[styles.tiltHintText, { color: '#065f46' }]}>Tilt forward = Correct</Text>
               </View>
               <View style={[styles.tiltHintCard, { backgroundColor: '#FEE2E2' }]}>
                 <Ionicons name="arrow-up" size={24} color={colors.red} />
-                <Text style={[styles.tiltHintText, { color: '#991b1b' }]}>Tilt up = Skip</Text>
+                <Text style={[styles.tiltHintText, { color: '#991b1b' }]}>Tilt back = Skip</Text>
               </View>
             </View>
           )}
@@ -363,6 +560,49 @@ export default function CharadesScreen() {
         <View style={[styles.timerOverlay, { top: insets.top + spacing.sm }]}>
           <Timer time={timer.time} maxTime={game.timerDuration} size="sm" />
         </View>
+        {tiltResult && (
+          <Animated.View
+            style={[
+              styles.tiltFlash,
+              {
+                backgroundColor: tiltResult === 'correct' ? '#22c55e' : '#ef4444',
+                opacity: tiltFlashOpacity,
+                transform: [{ scale: tiltFlashScale }],
+              },
+            ]}
+          >
+            <Animated.Text
+              style={[
+                styles.tiltFlashText,
+                { transform: [{ scale: tiltFlashTextScale }] },
+              ]}
+            >
+              {tiltResult === 'correct' ? 'CORRECT!' : 'PASS'}
+            </Animated.Text>
+            {tiltResult === 'correct' && (
+              <Text style={styles.tiltFlashEmoji}>🎉</Text>
+            )}
+          </Animated.View>
+        )}
+      </View>
+    )
+  }
+
+  // Playing Phase — Active Player waiting for scene from host
+  if (game.phase === 'playing' && isActivePlayer && !currentScene) {
+    return (
+      <View style={[styles.spectatorContainer, { paddingTop: insets.top + spacing.lg }]}>
+        <Pressable style={[styles.exitButton, { top: insets.top + spacing.sm }]} onPress={handleExit} hitSlop={12}>
+          <Ionicons name="close" size={22} color={colors.creamDim} />
+        </Pressable>
+        <View style={styles.spectatorCard}>
+          <CharacterAvatar size={64} style={{ marginBottom: spacing.md }} />
+          <Text style={styles.spectatorTitle}>Get Ready!</Text>
+          <Text style={styles.spectatorDesc}>Hold the phone on your forehead</Text>
+        </View>
+        <View style={styles.timerCenter}>
+          <Timer time={timer.time} maxTime={game.timerDuration} size="lg" />
+        </View>
       </View>
     )
   }
@@ -376,7 +616,7 @@ export default function CharadesScreen() {
         </Pressable>
         <ConnectionStatus isConnected={room.isConnected} />
         <View style={styles.spectatorCard}>
-          <Text style={styles.spectatorEmoji}>🎭</Text>
+          <CharacterAvatar size={64} style={{ marginBottom: spacing.md }} />
           {currentScene ? (
             <>
               <Text style={styles.spectatorTitle}>{currentScene.title}</Text>
@@ -447,6 +687,7 @@ export default function CharadesScreen() {
           winner={game.players.reduce((a, b) => (a.score > b.score ? a : b), game.players[0])}
           players={game.players}
           onPlayAgain={() => {
+            gameLoggedRef.current = false
             game.reset()
             charades.reset()
             game.setGameType('charades')
@@ -702,5 +943,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  tiltFlash: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  tiltFlashText: {
+    fontSize: 52,
+    fontWeight: fontWeight.extrabold,
+    color: '#ffffff',
+    letterSpacing: 4,
+    textTransform: 'uppercase',
+  },
+  tiltFlashEmoji: {
+    fontSize: 64,
+    marginTop: spacing.md,
   },
 })

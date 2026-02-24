@@ -1,5 +1,6 @@
+// † "Let us not become weary in doing good" — Galatians 6:9
 import { useEffect, useState, useRef } from 'react'
-import { View, Text, ScrollView, StyleSheet, Animated } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, Animated, RefreshControl } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuthStore } from '../../../stores/authStore'
 import { createClient } from '../../../lib/supabase/client'
@@ -23,49 +24,56 @@ export default function ChurchAnalyticsScreen() {
     topGame: 'N/A',
   })
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Staggered entrance animations
   const fadeAnims = useRef(STAT_CARDS.map(() => new Animated.Value(0))).current
   const slideAnims = useRef(STAT_CARDS.map(() => new Animated.Value(40))).current
 
+  const loadAnalytics = async () => {
+    if (!user?.church_id) return
+    const supabase = createClient()
+    const churchId = user.church_id
+
+    const [membersRes, gamesRes] = await Promise.all([
+      supabase
+        .from('church_memberships')
+        .select('id', { count: 'exact' })
+        .eq('church_id', churchId),
+      supabase
+        .from('game_sessions')
+        .select('game_type')
+        .eq('church_id', churchId),
+    ])
+
+    const totalMembers = membersRes.count || 0
+    const games = gamesRes.data || []
+    const totalGames = games.length
+
+    // Find top game
+    const gameCounts: Record<string, number> = {}
+    games.forEach((g: any) => {
+      gameCounts[g.game_type] = (gameCounts[g.game_type] || 0) + 1
+    })
+    const topGame = Object.entries(gameCounts).sort((a, b) => b[1] - a[1])[0]
+
+    setAnalytics({
+      totalMembers,
+      totalGames,
+      activeThisWeek: 0,
+      topGame: topGame ? topGame[0].replace('_', ' ') : 'N/A',
+    })
+  }
+
   useEffect(() => {
-    async function load() {
-      if (!user?.church_id) return
-      const supabase = createClient()
-      const churchId = user.church_id
-
-      const [membersRes, gamesRes] = await Promise.all([
-        supabase
-          .from('church_memberships')
-          .select('id', { count: 'exact' })
-          .eq('church_id', churchId),
-        supabase
-          .from('game_sessions')
-          .select('game_type')
-          .eq('church_id', churchId),
-      ])
-
-      const totalMembers = membersRes.count || 0
-      const games = gamesRes.data || []
-      const totalGames = games.length
-
-      // Find top game
-      const gameCounts: Record<string, number> = {}
-      games.forEach((g: any) => {
-        gameCounts[g.game_type] = (gameCounts[g.game_type] || 0) + 1
-      })
-      const topGame = Object.entries(gameCounts).sort((a, b) => b[1] - a[1])[0]
-
-      setAnalytics({
-        totalMembers,
-        totalGames,
-        activeThisWeek: 0,
-        topGame: topGame ? topGame[0].replace('_', ' ') : 'N/A',
-      })
-      setLoading(false)
-    }
-    load()
+    loadAnalytics().finally(() => setLoading(false))
   }, [user])
+
+  const onRefresh = async () => {
+    setRefreshing(true)
+    await loadAnalytics()
+    setRefreshing(false)
+  }
 
   // Trigger stagger animation once loading finishes
   useEffect(() => {
@@ -108,6 +116,7 @@ export default function ChurchAnalyticsScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.md }]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold} />}
     >
       <Text style={styles.heading}>Church Analytics</Text>
 

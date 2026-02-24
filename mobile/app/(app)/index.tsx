@@ -1,12 +1,15 @@
+// † "Commit to the Lord whatever you do, and he will establish your plans" — Proverbs 16:3
 import { useEffect, useState, useRef } from 'react'
 import {
   View,
   Text,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Animated,
   Dimensions,
+  RefreshControl,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -14,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useAuthStore } from '../../stores/authStore'
 import { createClient } from '../../lib/supabase/client'
 import { Spinner } from '../../components/ui/Spinner'
+import { GAME_CHARACTERS } from '../../lib/characterImages'
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../../lib/theme'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
@@ -27,6 +31,7 @@ const quickPlayGames = [
     bg: '#FEF3C7',
     color: '#f59e0b',
     dark: '#92400e',
+    character: GAME_CHARACTERS.charades,
   },
   {
     title: 'Who Am I?',
@@ -36,6 +41,7 @@ const quickPlayGames = [
     bg: '#DBEAFE',
     color: '#3b82f6',
     dark: '#1e3a8a',
+    character: GAME_CHARACTERS.who_am_i,
   },
   {
     title: 'Guess Verse',
@@ -45,6 +51,7 @@ const quickPlayGames = [
     bg: '#D1FAE5',
     color: '#10b981',
     dark: '#064e3b',
+    character: GAME_CHARACTERS.guess_verse,
   },
   {
     title: 'Trivia',
@@ -54,6 +61,7 @@ const quickPlayGames = [
     bg: '#EDE9FE',
     color: '#8b5cf6',
     dark: '#4c1d95',
+    character: GAME_CHARACTERS.trivia,
   },
 ]
 
@@ -146,9 +154,7 @@ function GameCard({
         onPressOut={onPressOut}
         style={[styles.gameCard, { backgroundColor: game.bg, borderColor: game.color + '40' }]}
       >
-        <View style={[styles.gameIconCircle, { backgroundColor: game.color + '20' }]}>
-          <Ionicons name={game.icon} size={30} color={game.color} />
-        </View>
+        <Image source={game.character} style={styles.gameCardCharacter} resizeMode="contain" />
         <Text style={[styles.gameCardTitle, { color: game.dark }]}>{game.title}</Text>
         <Text style={[styles.gameCardDesc, { color: game.dark + '99' }]}>{game.desc}</Text>
         <View style={[styles.playBadge, { backgroundColor: game.color }]}>
@@ -202,44 +208,51 @@ export default function DashboardScreen() {
   const [recentGames, setRecentGames] = useState<any[]>([])
   const [stats, setStats] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Slide-in animation for recent games
   const recentSlide = useRef(new Animated.Value(40)).current
   const recentOpacity = useRef(new Animated.Value(0)).current
 
-  useEffect(() => {
-    async function loadData() {
-      const supabase = createClient()
-      const [gamesRes, statsRes] = await Promise.all([
-        supabase
-          .from('game_sessions')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(5),
-        supabase.from('game_stats').select('*'),
-      ])
-      setRecentGames(gamesRes.data || [])
-      setStats(statsRes.data || [])
-      setLoading(false)
+  const loadData = async () => {
+    const supabase = createClient()
+    const [gamesRes, statsRes] = await Promise.all([
+      supabase
+        .from('game_sessions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabase.from('game_stats').select('*'),
+    ])
+    setRecentGames(gamesRes.data || [])
+    setStats(statsRes.data || [])
 
-      // Trigger recent games slide-in
-      Animated.parallel([
-        Animated.timing(recentSlide, {
-          toValue: 0,
-          duration: 500,
-          delay: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(recentOpacity, {
-          toValue: 1,
-          duration: 500,
-          delay: 400,
-          useNativeDriver: true,
-        }),
-      ]).start()
-    }
-    loadData()
+    // Trigger recent games slide-in
+    Animated.parallel([
+      Animated.timing(recentSlide, {
+        toValue: 0,
+        duration: 500,
+        delay: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(recentOpacity, {
+        toValue: 1,
+        duration: 500,
+        delay: 400,
+        useNativeDriver: true,
+      }),
+    ]).start()
+  }
+
+  useEffect(() => {
+    loadData().finally(() => setLoading(false))
   }, [])
+
+  const onRefresh = async () => {
+    setRefreshing(true)
+    await loadData()
+    setRefreshing(false)
+  }
 
   const totalGames = stats.reduce((sum: number, s: any) => sum + (s.games_played || 0), 0)
   const totalWins = stats.reduce((sum: number, s: any) => sum + (s.games_won || 0), 0)
@@ -258,6 +271,7 @@ export default function DashboardScreen() {
       style={styles.container}
       contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.md }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold} />}
     >
       {/* Greeting */}
       <View style={styles.greetingRow}>
@@ -453,13 +467,11 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...shadows.md,
   },
-  gameIconCircle: {
+  gameCardCharacter: {
     width: 52,
-    height: 52,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    height: 63,
     marginBottom: spacing.sm,
+    alignSelf: 'center',
   },
   gameCardTitle: {
     fontSize: fontSize.md,

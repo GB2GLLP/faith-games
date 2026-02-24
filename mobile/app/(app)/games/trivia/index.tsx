@@ -1,5 +1,7 @@
+// † "The fear of the Lord is the beginning of knowledge" — Proverbs 1:7
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { View, Text, Pressable, ScrollView, StyleSheet, Animated } from 'react-native'
+import { View, Text, Pressable, ScrollView, StyleSheet, Animated, Alert } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useGameStore } from '../../../../stores/gameStore'
@@ -14,6 +16,7 @@ import { ConnectionStatus } from '../../../../components/game/ConnectionStatus'
 import { Button } from '../../../../components/ui/Button'
 import { Spinner } from '../../../../components/ui/Spinner'
 import { GAME_CONFIG } from '../../../../lib/constants'
+import { CharacterAvatar } from '../../../../components/game/CharacterAvatar'
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../../../../lib/theme'
 import type { Database } from '../../../../lib/types/database'
 import type { RoomEvent, TriviaGrabEvent } from '../../../../lib/types/multiplayer'
@@ -110,21 +113,47 @@ export default function TriviaMultiplayerScreen() {
     Animated.spring(resultScale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: true }).start()
   }, [resultScale])
 
-  // ---------- Initialize trivia store with questions (host) ----------
+  // ---------- Initialize trivia store + start game (host) ----------
 
+  const hasStartedRef = useRef(false)
   useEffect(() => {
-    if (isHost && questions.length > 0) {
-      trivia.setQuestions(questions)
+    if (!isHost || questions.length === 0 || hasStartedRef.current) return
+    hasStartedRef.current = true
+
+    // Set questions in trivia store (synchronous Zustand update)
+    trivia.setQuestions(questions)
+    game.setPhase('playing')
+
+    // Broadcast first question directly using store getState() to avoid stale closures
+    const q = useTriviaStore.getState().getCurrentQuestion()
+    if (!q) return
+
+    const answers =
+      q.question_type === 'true_false'
+        ? ['True', 'False']
+        : useTriviaStore.getState().getShuffledAnswers()
+
+    const payload = {
+      id: q.id,
+      question: q.question,
+      answers,
+      category: q.category,
+      difficulty: q.difficulty,
+      questionType: q.question_type,
     }
+
+    setBroadcastQuestion(payload)
+    setQuestionIndex(0)
+    setSubPhase('waiting')
+    animateEntrance()
+
+    // Broadcast to other players
+    useRoomStore.getState().sendGameEvent({
+      type: 'trivia:question',
+      question: payload,
+      questionIndex: 0,
+    } as any)
   }, [questions, isHost])
-
-  // ---------- Host: broadcast first question when playing starts ----------
-
-  useEffect(() => {
-    if (isHost && game.phase === 'playing') {
-      broadcastCurrentQuestion()
-    }
-  }, [game.phase, isHost])
 
   // ---------- Event handler for multiplayer events ----------
 
@@ -142,6 +171,10 @@ export default function TriviaMultiplayerScreen() {
           setLastCorrectAnswer(null)
           setLastExplanation(null)
           animateEntrance()
+          // Ensure game phase is playing (non-host needs this for correct UI)
+          if (useGameStore.getState().phase !== 'playing') {
+            game.setPhase('playing')
+          }
           break
         }
 
@@ -190,24 +223,22 @@ export default function TriviaMultiplayerScreen() {
           setSubPhase('result')
           animateResult()
 
-          // Sync scores from host
+          // Sync scores from host (use absolute setScore for authoritative sync)
           if (!isHost) {
             event.scores.forEach(({ userId, score }) => {
-              const player = game.players.find((p) => p.id === userId)
-              if (player) {
-                const diff = score - player.score
-                if (diff !== 0) {
-                  game.updateScore(userId, diff)
-                }
-              }
+              useGameStore.getState().setScore(userId, score)
             })
           }
 
-          // If passedTo is set, transition to passing (host will handle)
-          if (event.passedTo) {
+          // If passedTo is '__pending__', transition to passing sub-phase on non-host
+          // Don't set grabberUserId to the magic string
+          if (event.passedTo && event.passedTo !== '__pending__') {
             setGrabberUserId(event.passedTo)
             const passedPlayer = game.players.find((p) => p.id === event.passedTo)
             setGrabberName(passedPlayer?.name ?? null)
+          } else if (event.passedTo === '__pending__') {
+            // Signal to non-host that passing phase is starting
+            setTimeout(() => setSubPhase('passing'), 2000)
           }
           break
         }
@@ -223,13 +254,9 @@ export default function TriviaMultiplayerScreen() {
         // ── Game over ──
         case 'game:over': {
           if (!isHost) {
-            // Sync final scores
+            // Sync final scores with absolute values
             event.scores.forEach(({ userId, score }) => {
-              const player = game.players.find((p) => p.id === userId)
-              if (player) {
-                const diff = score - player.score
-                if (diff !== 0) game.updateScore(userId, diff)
-              }
+              useGameStore.getState().setScore(userId, score)
             })
           }
           game.setPhase('game_over')
@@ -250,14 +277,21 @@ export default function TriviaMultiplayerScreen() {
 
   /** Broadcast the current question to all players */
   const broadcastCurrentQuestion = useCallback(() => {
+    // Clear any stale grab timer from previous question
+    if (grabWindowTimer.current) {
+      clearTimeout(grabWindowTimer.current)
+      grabWindowTimer.current = null
+    }
+    pendingGrabs.current = []
+
     const q = trivia.getCurrentQuestion()
     if (!q) return
 
-    // Build shuffled answers
+    // Build shuffled answers using Fisher-Yates via store helper
     const answers =
       q.question_type === 'true_false'
         ? ['True', 'False']
-        : [...q.wrong_answers, q.correct_answer].sort(() => Math.random() - 0.5)
+        : trivia.getShuffledAnswers()
 
     const payload = {
       id: q.id,
@@ -450,10 +484,26 @@ export default function TriviaMultiplayerScreen() {
     router.replace('/(app)/games/lobby' as any)
   }, [game, trivia, router])
 
-  const handleExit = useCallback(async () => {
-    await room.leaveRoom()
-    router.replace('/(app)/games' as any)
-  }, [room, router])
+  const handleExit = useCallback(() => {
+    Alert.alert(
+      'Leave Game',
+      'Are you sure you want to leave?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            if (grabWindowTimer.current) clearTimeout(grabWindowTimer.current)
+            await room.leaveRoom()
+            game.reset()
+            trivia.reset()
+            router.replace('/(app)/games' as any)
+          },
+        },
+      ]
+    )
+  }, [room, game, trivia, router])
 
   // ---------- Cleanup ----------
 
@@ -513,9 +563,14 @@ export default function TriviaMultiplayerScreen() {
       {/* Connection status bar */}
       <View style={styles.topBar}>
         <ConnectionStatus isConnected={isConnected} playerCount={playerCount} />
-        <Text style={styles.questionCounter}>
-          Q{questionIndex + 1}
-        </Text>
+        <View style={styles.topBarRight}>
+          <Text style={styles.questionCounter}>
+            Q{questionIndex + 1}
+          </Text>
+          <Pressable onPress={handleExit} hitSlop={12}>
+            <Ionicons name="close" size={24} color={colors.creamDim} />
+          </Pressable>
+        </View>
       </View>
 
       {/* Scoreboard */}
@@ -583,6 +638,9 @@ export default function TriviaMultiplayerScreen() {
               </Text>
             </View>
           </View>
+
+          {/* Decorative character */}
+          <CharacterAvatar size={56} style={{ marginBottom: spacing.sm }} />
 
           {/* Question text */}
           <Text style={styles.questionText}>{currentQuestion.question}</Text>
@@ -801,6 +859,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.md,
+  },
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   questionCounter: {
     fontSize: fontSize.sm,

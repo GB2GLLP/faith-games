@@ -1,3 +1,4 @@
+// † "A cord of three strands is not quickly broken" — Ecclesiastes 4:12
 import type { GameType } from './database'
 
 // Room player (stored in game_rooms.players jsonb)
@@ -90,6 +91,16 @@ export interface CharadesSceneEvent {
 export interface CharadesTiltEvent {
   type: 'charades:tilt'
   result: 'correct' | 'skip'
+  playerId: string
+}
+
+export interface CharadesStartTurnEvent {
+  type: 'charades:start_turn'
+  activePlayerId: string
+}
+
+export interface CharadesPlayerReadyEvent {
+  type: 'charades:player_ready'
   playerId: string
 }
 
@@ -194,6 +205,8 @@ export type RoomEvent =
   | GameOverEvent
   | CharadesSceneEvent
   | CharadesTiltEvent
+  | CharadesStartTurnEvent
+  | CharadesPlayerReadyEvent
   | TimerStartEvent
   | TimerEndEvent
   | WhoAmICharacterEvent

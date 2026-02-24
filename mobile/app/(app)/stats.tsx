@@ -1,5 +1,6 @@
+// † "The Lord does not look at the things people look at; the Lord looks at the heart" — 1 Samuel 16:7
 import { useEffect, useState, useRef } from 'react'
-import { View, Text, ScrollView, StyleSheet, Animated } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, Animated, RefreshControl } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuthStore } from '../../stores/authStore'
 import { createClient } from '../../lib/supabase/client'
@@ -29,6 +30,7 @@ export default function StatsScreen() {
   const [stats, setStats] = useState<any[]>([])
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Animated entrance
   const fadeAnim = useRef(new Animated.Value(0)).current
@@ -52,24 +54,30 @@ export default function StatsScreen() {
     }
   }, [loading])
 
+  const loadStats = async () => {
+    if (!user) return
+    const supabase = createClient()
+    const [statsRes, sessionsRes] = await Promise.all([
+      supabase.from('game_stats').select('*').eq('user_id', user.id),
+      supabase
+        .from('game_sessions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ])
+    setStats(statsRes.data || [])
+    setSessions(sessionsRes.data || [])
+  }
+
   useEffect(() => {
-    async function loadStats() {
-      if (!user) return
-      const supabase = createClient()
-      const [statsRes, sessionsRes] = await Promise.all([
-        supabase.from('game_stats').select('*').eq('user_id', user.id),
-        supabase
-          .from('game_sessions')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(20),
-      ])
-      setStats(statsRes.data || [])
-      setSessions(sessionsRes.data || [])
-      setLoading(false)
-    }
-    loadStats()
+    loadStats().finally(() => setLoading(false))
   }, [user])
+
+  const onRefresh = async () => {
+    setRefreshing(true)
+    await loadStats()
+    setRefreshing(false)
+  }
 
   if (loading) {
     return <View style={styles.center}><Spinner size="lg" /></View>
@@ -83,6 +91,7 @@ export default function StatsScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.md }]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold} />}
     >
       <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
         <Text style={styles.heading}>Your Stats</Text>

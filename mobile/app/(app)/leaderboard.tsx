@@ -1,5 +1,6 @@
+// † "The last will be first, and the first will be last" — Matthew 20:16
 import { useEffect, useState, useRef } from 'react'
-import { View, Text, Pressable, ScrollView, StyleSheet, FlatList, Animated } from 'react-native'
+import { View, Text, Pressable, ScrollView, StyleSheet, FlatList, Animated, RefreshControl } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuthStore } from '../../stores/authStore'
 import { createClient } from '../../lib/supabase/client'
@@ -34,6 +35,7 @@ export default function LeaderboardScreen() {
   const { user } = useAuthStore()
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [scope, setScope] = useState<'global' | 'church'>('global')
   const [gameFilter, setGameFilter] = useState<GameType | 'all'>('all')
 
@@ -59,67 +61,72 @@ export default function LeaderboardScreen() {
     }
   }, [loading])
 
-  useEffect(() => {
-    async function loadLeaderboard() {
-      setLoading(true)
-      const supabase = createClient()
+  const loadLeaderboard = async () => {
+    const supabase = createClient()
 
-      let query = supabase
-        .from('game_stats')
-        .select('user_id, game_type, total_score, games_won, games_played')
+    let query = supabase
+      .from('game_stats')
+      .select('user_id, game_type, total_score, games_won, games_played')
 
-      if (gameFilter !== 'all') {
-        query = query.eq('game_type', gameFilter)
-      }
-
-      const { data: statsData } = await query
-
-      if (!statsData) {
-        setEntries([])
-        setLoading(false)
-        return
-      }
-
-      // Aggregate by user
-      const userMap = new Map<string, { total_score: number; games_won: number; games_played: number }>()
-      statsData.forEach((s: any) => {
-        const existing = userMap.get(s.user_id) || { total_score: 0, games_won: 0, games_played: 0 }
-        userMap.set(s.user_id, {
-          total_score: existing.total_score + (s.total_score || 0),
-          games_won: existing.games_won + (s.games_won || 0),
-          games_played: existing.games_played + (s.games_played || 0),
-        })
-      })
-
-      // Get user names
-      const userIds = Array.from(userMap.keys())
-      const { data: users } = await supabase
-        .from('users')
-        .select('id, display_name, church_id')
-        .in('id', userIds)
-
-      let result: LeaderboardEntry[] = userIds.map((id) => {
-        const userInfo = users?.find((u: any) => u.id === id)
-        const stats = userMap.get(id)!
-        return {
-          user_id: id,
-          display_name: (userInfo as any)?.display_name || 'Unknown',
-          ...stats,
-        }
-      })
-
-      // Filter by church if needed
-      if (scope === 'church' && user?.church_id) {
-        const churchUserIds = users?.filter((u: any) => u.church_id === user.church_id).map((u: any) => u.id) || []
-        result = result.filter((e) => churchUserIds.includes(e.user_id))
-      }
-
-      result.sort((a, b) => b.total_score - a.total_score)
-      setEntries(result)
-      setLoading(false)
+    if (gameFilter !== 'all') {
+      query = query.eq('game_type', gameFilter)
     }
-    loadLeaderboard()
+
+    const { data: statsData } = await query
+
+    if (!statsData) {
+      setEntries([])
+      return
+    }
+
+    // Aggregate by user
+    const userMap = new Map<string, { total_score: number; games_won: number; games_played: number }>()
+    statsData.forEach((s: any) => {
+      const existing = userMap.get(s.user_id) || { total_score: 0, games_won: 0, games_played: 0 }
+      userMap.set(s.user_id, {
+        total_score: existing.total_score + (s.total_score || 0),
+        games_won: existing.games_won + (s.games_won || 0),
+        games_played: existing.games_played + (s.games_played || 0),
+      })
+    })
+
+    // Get user names
+    const userIds = Array.from(userMap.keys())
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, display_name, church_id')
+      .in('id', userIds)
+
+    let result: LeaderboardEntry[] = userIds.map((id) => {
+      const userInfo = users?.find((u: any) => u.id === id)
+      const stats = userMap.get(id)!
+      return {
+        user_id: id,
+        display_name: (userInfo as any)?.display_name || 'Unknown',
+        ...stats,
+      }
+    })
+
+    // Filter by church if needed
+    if (scope === 'church' && user?.church_id) {
+      const churchUserIds = users?.filter((u: any) => u.church_id === user.church_id).map((u: any) => u.id) || []
+      result = result.filter((e) => churchUserIds.includes(e.user_id))
+    }
+
+    result.sort((a, b) => b.total_score - a.total_score)
+    setEntries(result)
+  }
+
+  useEffect(() => {
+    setLoading(true)
+    loadLeaderboard().finally(() => setLoading(false))
   }, [scope, gameFilter, user])
+
+  const onRefresh = async () => {
+    setRefreshing(true)
+    await loadLeaderboard()
+    setRefreshing(false)
+  }
 
   const renderRankBadge = (rank: number) => {
     const badgeColor = RANK_COLORS[rank]
@@ -186,6 +193,7 @@ export default function LeaderboardScreen() {
             data={entries}
             keyExtractor={(item) => item.user_id}
             contentContainerStyle={styles.list}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold} />}
             renderItem={({ item, index }) => {
               const rank = index + 1
               return (
